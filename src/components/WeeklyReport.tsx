@@ -37,6 +37,9 @@ const WeeklyReport = () => {
     const fetchData = async () => {
       setLoading(true);
 
+      const currentWeekStart = startOfWeek(week, { weekStartsOn: 1 });
+      const currentWeekEnd = endOfWeek(week, { weekStartsOn: 1 });
+
       // Fetch employees
       const { data: employeesData, error: employeesError } = await supabase
         .from('employees')
@@ -53,8 +56,8 @@ const WeeklyReport = () => {
       const { data: attendanceData, error: attendanceError } = await supabase
         .from('attendance')
         .select('*')
-        .gte('date', format(weekStart, 'yyyy-MM-dd'))
-        .lte('date', format(weekEnd, 'yyyy-MM-dd'));
+        .gte('date', format(currentWeekStart, 'yyyy-MM-dd'))
+        .lte('date', format(currentWeekEnd, 'yyyy-MM-dd'));
 
       if (attendanceError) {
         console.error('Error fetching attendance:', attendanceError);
@@ -66,8 +69,8 @@ const WeeklyReport = () => {
       const { data: holidaysData, error: holidaysError } = await supabase
         .from('public_holidays')
         .select('*')
-        .gte('date', format(weekStart, 'yyyy-MM-dd'))
-        .lte('date', format(weekEnd, 'yyyy-MM-dd'));
+        .gte('date', format(currentWeekStart, 'yyyy-MM-dd'))
+        .lte('date', format(currentWeekEnd, 'yyyy-MM-dd'));
 
       if (holidaysError) {
         console.error('Error fetching public holidays:', holidaysError);
@@ -79,7 +82,7 @@ const WeeklyReport = () => {
     };
 
     fetchData();
-  }, [week, weekStart, weekEnd]);
+  }, [week]);
 
   const handleWeekChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     // Add time zone offset to prevent date from shifting
