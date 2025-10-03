@@ -98,8 +98,7 @@ const Eligibility: React.FC = () => {
             .from('attendance')
             .select('manway_no, present, date')
             .gte('date', startDate)
-            .lte('date', endDate)
-            .eq('present', true);
+            .lte('date', endDate);
 
           const { data: holidaysData, error: holidaysError } = await supabase
             .from('public_holidays')
@@ -112,14 +111,27 @@ const Eligibility: React.FC = () => {
             setEmployees([]);
           } else {
             const holidayDates = new Set(holidaysData.map(h => h.date));
-            const filteredAttendance = attendanceData.filter(record => !holidayDates.has(record.date));
-
-            const attendanceCounts = filteredAttendance.reduce((acc, record) => {
-              acc[record.manway_no] = (acc[record.manway_no] || 0) + 1;
+            
+            const attendanceByUser = allEmployees.reduce((acc, emp) => {
+              acc[emp.manway_no] = new Set<string>();
               return acc;
-            }, {} as Record<string, number>);
+            }, {} as Record<string, Set<string>>);
 
-            const eligibleManwayNos = Object.keys(attendanceCounts).filter(manwayNo => attendanceCounts[manwayNo] >= 4);
+            // Add actual attendance
+            attendanceData.forEach(record => {
+              if (record.present) {
+                attendanceByUser[record.manway_no]?.add(record.date);
+              }
+            });
+
+            // Add public holidays as attendance for everyone
+            holidayDates.forEach(hDate => {
+              for (const manwayNo in attendanceByUser) {
+                attendanceByUser[manwayNo].add(hDate);
+              }
+            });
+
+            const eligibleManwayNos = Object.keys(attendanceByUser).filter(manwayNo => attendanceByUser[manwayNo].size >= 4);
             const eligibleEmployees = allEmployees.filter(emp => eligibleManwayNos.includes(emp.manway_no));
             setEmployees(eligibleEmployees);
           }
