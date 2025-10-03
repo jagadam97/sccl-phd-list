@@ -82,12 +82,21 @@ main {
   padding: 1rem;
 }
 
-.auth-container, .dashboard, .form-container, .table-container {
+.auth-container, .dashboard, .form-container {
   display: flex;
   flex-direction: column;
   padding: 20px;
   box-sizing: border-box;
   align-items: center;
+}
+
+.table-container {
+  display: flex;
+  flex-direction: column;
+  padding: 20px;
+  box-sizing: border-box;
+  overflow-x: auto;
+  align-items: flex-start;
 }
 
 .auth-container {
