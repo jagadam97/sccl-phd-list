@@ -80,7 +80,53 @@ const Eligibility: React.FC = () => {
         const sortedEmployees = [...employeesAfterStart, ...employeesBeforeStart];
         setEmployees(sortedEmployees);
 
-      } else { // For playday
+      } else if (type === 'playday') {
+        const selectedDate = new Date(date);
+        const dayOfWeek = selectedDate.getUTCDay();
+
+        if (dayOfWeek === 0) { // Sunday
+          const previousSaturday = new Date(selectedDate);
+          previousSaturday.setUTCDate(selectedDate.getUTCDate() - 1);
+
+          const previousMonday = new Date(previousSaturday);
+          previousMonday.setUTCDate(previousSaturday.getUTCDate() - 5);
+
+          const startDate = previousMonday.toISOString().split('T')[0];
+          const endDate = previousSaturday.toISOString().split('T')[0];
+
+          const { data: attendanceData, error: attendanceError } = await supabase
+            .from('attendance')
+            .select('manway_no, present, date')
+            .gte('date', startDate)
+            .lte('date', endDate)
+            .eq('present', true);
+
+          const { data: holidaysData, error: holidaysError } = await supabase
+            .from('public_holidays')
+            .select('date')
+            .gte('date', startDate)
+            .lte('date', endDate);
+
+          if (attendanceError || holidaysError) {
+            console.error('Error fetching data for playday:', attendanceError || holidaysError);
+            setEmployees([]);
+          } else {
+            const holidayDates = new Set(holidaysData.map(h => h.date));
+            const filteredAttendance = attendanceData.filter(record => !holidayDates.has(record.date));
+
+            const attendanceCounts = filteredAttendance.reduce((acc, record) => {
+              acc[record.manway_no] = (acc[record.manway_no] || 0) + 1;
+              return acc;
+            }, {} as Record<string, number>);
+
+            const eligibleManwayNos = Object.keys(attendanceCounts).filter(manwayNo => attendanceCounts[manwayNo] >= 4);
+            const eligibleEmployees = allEmployees.filter(emp => eligibleManwayNos.includes(emp.manway_no));
+            setEmployees(eligibleEmployees);
+          }
+        } else {
+          setEmployees([]);
+        }
+      } else {
         setEmployees(allEmployees);
       }
       
