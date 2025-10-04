@@ -4,6 +4,7 @@ import { auth, googleProvider } from './firebase';
 import {
   createUserWithEmailAndPassword,
   signInWithEmailAndPassword,
+  signInAnonymously,
   signInWithPopup,
   onAuthStateChanged,
   signOut,
@@ -51,14 +52,6 @@ const Auth = () => {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
 
-  const handleSignUp = async () => {
-    try {
-      await createUserWithEmailAndPassword(auth, email, password);
-    } catch (err: any) {
-      setError(err.message);
-    }
-  };
-
   const handleLogin = async () => {
     try {
       await signInWithEmailAndPassword(auth, email, password);
@@ -70,6 +63,14 @@ const Auth = () => {
   const handleGoogleLogin = async () => {
     try {
       await signInWithPopup(auth, googleProvider);
+    } catch (err: any) {
+      setError(err.message);
+    }
+  };
+
+  const handleGuestLogin = async () => {
+    try {
+      await signInAnonymously(auth);
     } catch (err: any) {
       setError(err.message);
     }
@@ -91,7 +92,7 @@ const Auth = () => {
         onChange={(e) => setPassword(e.target.value)}
       />
       <button onClick={handleLogin}>Login</button>
-      <button onClick={handleSignUp}>Sign Up</button>
+      <button onClick={handleGuestLogin}>Guest Login</button>
       <button onClick={handleGoogleLogin}>Sign in with Google</button>
       {error && <p className="error">{error}</p>}
     </div>
@@ -100,7 +101,7 @@ const Auth = () => {
 
 const MainApp = ({ user }: { user: User }) => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
-  const userIsAdmin = user.email === 'jgireesa@gmail.com';
+  const userIsAdmin = user.email?.toLowerCase() === 'jgireesa@gmail.com';
 
   const handleLogout = async () => {
     await signOut(auth);
