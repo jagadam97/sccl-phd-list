@@ -50,17 +50,7 @@ function App() {
 }
 
 const Auth = () => {
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
   const [error, setError] = useState('');
-
-  const handleLogin = async () => {
-    try {
-      await signInWithEmailAndPassword(auth, email, password);
-    } catch (err: any) {
-      setError(err.message);
-    }
-  };
 
   const handleGoogleLogin = async () => {
     try {
@@ -80,20 +70,7 @@ const Auth = () => {
 
   return (
     <div className="auth-container">
-      <h2>Login or Sign Up</h2>
-      <input
-        type="email"
-        placeholder="Email"
-        value={email}
-        onChange={(e) => setEmail(e.target.value)}
-      />
-      <input
-        type="password"
-        placeholder="Password"
-        value={password}
-        onChange={(e) => setPassword(e.target.value)}
-      />
-      <button onClick={handleLogin}>Login</button>
+      <h2>Login</h2>
       <button onClick={handleGuestLogin}>Guest Login</button>
       <button onClick={handleGoogleLogin}>Sign in with Google</button>
       {error && <p className="error">{error}</p>}
@@ -103,7 +80,7 @@ const Auth = () => {
 
 const MainApp = ({ user }: { user: User }) => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
-  const userIsAdmin = user.email?.toLowerCase() === 'jgireesa@gmail.com';
+  const userIsAdmin = user.email?.toLowerCase() === 'jgireesa@gmail.com' || user.email?.toLowerCase() === 'dineshjagadam@gmail.com';
 
   const handleLogout = async () => {
     await signOut(auth);

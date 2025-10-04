@@ -26,6 +26,7 @@ const MarkEligibility: React.FC<EligibilityProps> = ({ userIsAdmin }) => {
   const [publicHolidays, setPublicHolidays] = useState<string[]>([]);
   const [playdayCounts, setPlaydayCounts] = useState<Record<string, number>>({});
   const [phdCounts, setPhdCounts] = useState<Record<string, number>>({});
+  const [playDayEligible, setPlayDayEligible] = useState<string[]>([]);
   const reportRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -243,9 +244,11 @@ const MarkEligibility: React.FC<EligibilityProps> = ({ userIsAdmin }) => {
             const eligibleManwayNos = Object.keys(attendanceByUser).filter(manwayNo => attendanceByUser[manwayNo].size >= 4);
             const eligibleEmployees = allEmployeesData.filter(emp => eligibleManwayNos.includes(emp.manway_no));
             setEmployees(eligibleEmployees);
+            setPlayDayEligible(eligibleManwayNos);
           }
         } else {
           setEmployees([]);
+          setPlayDayEligible([]);
         }
       } else {
         setEmployees(allEmployeesData);
@@ -272,26 +275,15 @@ const MarkEligibility: React.FC<EligibilityProps> = ({ userIsAdmin }) => {
     }
   }, [type]);
 
-  const handleCheckboxChange = async (manwayNo: string) => {
+  const handleCheckboxChange = (manwayNo: string) => {
     if (!userIsAdmin) return;
-
     const newSelection = new Set(selectedEmployees);
-    const isCurrentlySelected = newSelection.has(manwayNo);
-    
-    const { error } = await supabase
-      .from('eligibility_status')
-      .upsert({ manway_no: manwayNo, date, type, is_eligible: !isCurrentlySelected }, { onConflict: 'manway_no,date,type' });
-
-    if (error) {
-      console.error('Error updating eligibility status:', error);
+    if (newSelection.has(manwayNo)) {
+      newSelection.delete(manwayNo);
     } else {
-      if (isCurrentlySelected) {
-        newSelection.delete(manwayNo);
-      } else {
-        newSelection.add(manwayNo);
-      }
-      setSelectedEmployees(newSelection);
+      newSelection.add(manwayNo);
     }
+    setSelectedEmployees(newSelection);
   };
 
   const openSwapModal = (employee: Employee) => {
@@ -304,46 +296,22 @@ const MarkEligibility: React.FC<EligibilityProps> = ({ userIsAdmin }) => {
     setIsSwapModalOpen(false);
   };
 
-  const handleSwap = async (replacementEmployee: Employee) => {
+  const handleSwap = (replacementEmployee: Employee) => {
     if (employeeToSwap) {
-      const { error } = await supabase
-        .from('swaps')
-        .upsert({
-          date,
-          type,
-          original_manway_no: employeeToSwap.manway_no,
-          replacement_manway_no: replacementEmployee.manway_no,
-        }, { onConflict: 'date,type,original_manway_no' });
-
-      if (error) {
-        console.error('Error saving swap:', error);
-      } else {
-        setSwappedEmployees(prev => ({
-          ...prev,
-          [employeeToSwap.manway_no]: replacementEmployee,
-        }));
-      }
+      setSwappedEmployees(prev => ({
+        ...prev,
+        [employeeToSwap.manway_no]: replacementEmployee,
+      }));
     }
     closeSwapModal();
   };
 
-  const handleResetSwap = async (originalManwayNo: string) => {
-    const { error } = await supabase
-      .from('swaps')
-      .delete()
-      .eq('date', date)
-      .eq('type', type)
-      .eq('original_manway_no', originalManwayNo);
-
-    if (error) {
-      console.error('Error deleting swap:', error);
-    } else {
-      setSwappedEmployees(prev => {
-        const newSwaps = { ...prev };
-        delete newSwaps[originalManwayNo];
-        return newSwaps;
-      });
-    }
+  const handleResetSwap = (originalManwayNo: string) => {
+    setSwappedEmployees(prev => {
+      const newSwaps = { ...prev };
+      delete newSwaps[originalManwayNo];
+      return newSwaps;
+    });
   };
 
   const formatDate = (isoDate: string) => {
@@ -352,6 +320,72 @@ const MarkEligibility: React.FC<EligibilityProps> = ({ userIsAdmin }) => {
     if (dateParts.length !== 3) return isoDate;
     const [year, month, day] = dateParts;
     return `${day}-${month}-${year}`;
+  };
+
+  const handleSaveAndDownload = async () => {
+    setMessage('Saving changes...');
+    
+    // Clear existing records for the day and type
+    const { error: deleteEligibilityError } = await supabase
+      .from('eligibility_status')
+      .delete()
+      .eq('date', date)
+      .eq('type', type);
+
+    const { error: deleteSwapsError } = await supabase
+      .from('swaps')
+      .delete()
+      .eq('date', date)
+      .eq('type', type);
+
+    if (deleteEligibilityError || deleteSwapsError) {
+      setMessage('Error clearing old data. Please try again.');
+      console.error('Error clearing data:', deleteEligibilityError || deleteSwapsError);
+      return;
+    }
+
+    // Insert new eligibility records
+    const eligibilityToInsert = Array.from(selectedEmployees).map(manway_no => ({
+      manway_no,
+      date,
+      type,
+      is_eligible: true,
+    }));
+
+    const { error: insertEligibilityError } = await supabase
+      .from('eligibility_status')
+      .insert(eligibilityToInsert);
+
+    if (insertEligibilityError) {
+      setMessage('Error saving eligibility. Please try again.');
+      console.error('Error saving eligibility:', insertEligibilityError);
+      return;
+    }
+
+    // Insert new swap records
+    const swapsToInsert = Object.entries(swappedEmployees)
+      .filter(([, replacement]) => replacement)
+      .map(([original_manway_no, replacement]) => ({
+        date,
+        type,
+        original_manway_no,
+        replacement_manway_no: replacement!.manway_no,
+      }));
+
+    if (swapsToInsert.length > 0) {
+      const { error: insertSwapsError } = await supabase
+        .from('swaps')
+        .insert(swapsToInsert);
+
+      if (insertSwapsError) {
+        setMessage('Error saving swaps. Please try again.');
+        console.error('Error saving swaps:', insertSwapsError);
+        return;
+      }
+    }
+    
+    setMessage('Changes saved. Generating report...');
+    await handleDownloadReport();
   };
 
   const handleDownloadReport = async () => {
@@ -408,11 +442,19 @@ const MarkEligibility: React.FC<EligibilityProps> = ({ userIsAdmin }) => {
         }
     }
 
-    return allEmployees.filter(emp => {
+    let available = allEmployees;
+    if (type === 'playday') {
+      available = allEmployees.filter(emp => playDayEligible.includes(emp.manway_no));
+    }
+
+    return available.filter(emp => {
         if (emp.manway_no === employeeToSwap.manway_no) {
             return false;
         }
         if (involvedManwayNos.has(emp.manway_no)) {
+            return false;
+        }
+        if (selectedEmployees.has(emp.manway_no)) {
             return false;
         }
         return true;
@@ -612,8 +654,8 @@ const MarkEligibility: React.FC<EligibilityProps> = ({ userIsAdmin }) => {
         </div>
       </div>
       
-      <button onClick={handleDownloadReport} disabled={loading || selectedEmployees.size === 0}>
-        {loading ? 'Loading...' : 'Download Report'}
+      <button onClick={handleSaveAndDownload} disabled={loading}>
+        {loading ? 'Loading...' : 'Save and Download Report'}
       </button>
       {message && <p className="message">{message}</p>}
     </div>
