@@ -11,7 +11,6 @@ interface Employee {
 const ViewEligibility: React.FC = () => {
   const [type, setType] = useState<'playday' | 'overtime' | 'phd'>('overtime');
   const [employees, setEmployees] = useState<Employee[]>([]);
-  const [allEmployees, setAllEmployees] = useState<Employee[]>([]);
   const [swappedEmployees, setSwappedEmployees] = useState<Record<string, Employee | null>>({});
   const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
   const [loading, setLoading] = useState(false);
@@ -33,8 +32,6 @@ const ViewEligibility: React.FC = () => {
         setLoading(false);
         return;
       }
-      
-      setAllEmployees(allEmployeesData);
 
       const { data: eligibilityData, error: eligibilityError } = await supabase
         .from('eligibility_status')
