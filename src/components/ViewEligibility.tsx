@@ -12,7 +12,7 @@ const ViewEligibility: React.FC = () => {
   const [type, setType] = useState<'playday' | 'overtime' | 'phd'>('overtime');
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [allEmployees, setAllEmployees] = useState<Employee[]>([]);
-  const [selectedEmployees, setSelectedEmployees] = useState<Set<string>>(new Set());
+  const [swappedEmployees, setSwappedEmployees] = useState<Record<string, Employee | null>>({});
   const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState('');
@@ -51,6 +51,23 @@ const ViewEligibility: React.FC = () => {
         );
         const eligibleEmployees = allEmployeesData.filter(emp => eligibleManwayNos.has(emp.manway_no));
         setEmployees(eligibleEmployees);
+      }
+
+      const { data: swapData, error: swapError } = await supabase
+        .from('swaps')
+        .select('original_manway_no, replacement_manway_no')
+        .eq('date', date)
+        .eq('type', type);
+
+      if (swapError) {
+        console.error('Error fetching swaps:', swapError);
+      } else {
+        const swaps: Record<string, Employee | null> = {};
+        for (const swap of swapData) {
+          const replacement = allEmployeesData.find(emp => emp.manway_no === swap.replacement_manway_no);
+          swaps[swap.original_manway_no] = replacement || null;
+        }
+        setSwappedEmployees(swaps);
       }
       
       setLoading(false);
@@ -132,13 +149,33 @@ const ViewEligibility: React.FC = () => {
             </tr>
           </thead>
           <tbody>
-            {employees.map((employee, index) => (
-              <tr key={employee.manway_no}>
-                <td style={{ textAlign: 'left' }}>{index + 1}</td>
-                <td style={{ textAlign: 'left' }}>{employee.manway_no}</td>
-                <td style={{ textAlign: 'left' }}>{employee.name}</td>
-              </tr>
-            ))}
+            {employees.map((employee, index) => {
+              const replacement = swappedEmployees[employee.manway_no];
+              return (
+                <tr key={employee.manway_no}>
+                  <td style={{ textAlign: 'left' }}>{index + 1}</td>
+                  {replacement ? (
+                    <>
+                      <td style={{ textAlign: 'left' }}>
+                        <span style={{ textDecoration: 'line-through' }}>{employee.manway_no}</span>
+                        <br />
+                        {replacement.manway_no}
+                      </td>
+                      <td style={{ textAlign: 'left' }}>
+                        <span style={{ textDecoration: 'line-through' }}>{employee.name}</span>
+                        <br />
+                        {replacement.name}
+                      </td>
+                    </>
+                  ) : (
+                    <>
+                      <td style={{ textAlign: 'left' }}>{employee.manway_no}</td>
+                      <td style={{ textAlign: 'left' }}>{employee.name}</td>
+                    </>
+                  )}
+                </tr>
+              );
+            })}
           </tbody>
         </table>
       </div>
@@ -156,13 +193,33 @@ const ViewEligibility: React.FC = () => {
               </tr>
             </thead>
             <tbody>
-              {employees.map((employee, index) => (
-                <tr key={employee.manway_no}>
-                  <td style={{ border: '1px solid #ddd', padding: '8px', textAlign: 'left' }}>{index + 1}</td>
-                  <td style={{ border: '1px solid #ddd', padding: '8px', textAlign: 'left' }}>{employee.manway_no}</td>
-                  <td style={{ border: '1px solid #ddd', padding: '8px', textAlign: 'left' }}>{employee.name}</td>
-                </tr>
-              ))}
+              {employees.map((employee, index) => {
+                const replacement = swappedEmployees[employee.manway_no];
+                return (
+                  <tr key={employee.manway_no}>
+                    <td style={{ border: '1px solid #ddd', padding: '8px', textAlign: 'left' }}>{index + 1}</td>
+                    {replacement ? (
+                      <>
+                        <td style={{ border: '1px solid #ddd', padding: '8px', textAlign: 'left' }}>
+                          <span style={{ textDecoration: 'line-through' }}>{employee.manway_no}</span>
+                          <br />
+                          {replacement.manway_no}
+                        </td>
+                        <td style={{ border: '1px solid #ddd', padding: '8px', textAlign: 'left' }}>
+                          <span style={{ textDecoration: 'line-through' }}>{employee.name}</span>
+                          <br />
+                          {replacement.name}
+                        </td>
+                      </>
+                    ) : (
+                      <>
+                        <td style={{ border: '1px solid #ddd', padding: '8px', textAlign: 'left' }}>{employee.manway_no}</td>
+                        <td style={{ border: '1px solid #ddd', padding: '8px', textAlign: 'left' }}>{employee.name}</td>
+                      </>
+                    )}
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>
