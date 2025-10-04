@@ -16,7 +16,9 @@ import TakeAttendance from './components/TakeAttendance';
 import WeeklyReport from './components/WeeklyReport';
 import LastSerialTracker from './components/LastSerialTracker';
 import PublicHolidays from './components/PublicHolidays';
-import Eligibility from './components/Eligibility';
+import MarkEligibility from './components/MarkEligibility';
+import ViewEligibility from './components/ViewEligibility';
+import AttendanceReport from './components/AttendanceReport';
 import './App.css';
 
 function App() {
@@ -127,7 +129,7 @@ const MainApp = ({ user }: { user: User }) => {
               {userIsAdmin ? (
                 <>
                   <Link to="/" onClick={closeMenu}>Take Attendance</Link>
-                  <Link to="/eligibility" onClick={closeMenu}>Eligibility</Link>
+                  <Link to="/mark-eligibility" onClick={closeMenu}>Mark Eligibility</Link>
                   <Link to="/add-employee" onClick={closeMenu}>Add Employee</Link>
                   <Link to="/employees" onClick={closeMenu}>Employee List</Link>
                   <Link to="/holidays" onClick={closeMenu}>Manage Holidays</Link>
@@ -154,18 +156,19 @@ const MainApp = ({ user }: { user: User }) => {
           {userIsAdmin ? (
             <>
               <Route path="/" element={<TakeAttendance />} />
-              <Route path="/eligibility" element={<Eligibility />} />
+              <Route path="/mark-eligibility" element={<MarkEligibility userIsAdmin={userIsAdmin} />} />
               <Route path="/add-employee" element={<AddEmployee />} />
               <Route path="/employees" element={<EmployeeList />} />
               <Route path="/holidays" element={<PublicHolidays />} />
               <Route path="/report" element={<WeeklyReport />} />
               <Route path="/tracker" element={<LastSerialTracker />} />
+              <Route path="/attendance-report" element={<AttendanceReport />} />
             </>
           ) : (
             <>
               <Route path="/" element={<Navigate to="/employees" />} />
               <Route path="/employees" element={<EmployeeList />} />
-              <Route path="/eligibility" element={<Eligibility />} />
+              <Route path="/eligibility" element={<ViewEligibility />} />
               <Route path="/report" element={<WeeklyReport />} />
             </>
           )}

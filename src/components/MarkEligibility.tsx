@@ -8,7 +8,11 @@ interface Employee {
   serial_number: number;
 }
 
-const Eligibility: React.FC = () => {
+interface EligibilityProps {
+  userIsAdmin: boolean;
+}
+
+const MarkEligibility: React.FC<EligibilityProps> = ({ userIsAdmin }) => {
   const [type, setType] = useState<'playday' | 'overtime' | 'phd'>('overtime');
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [allEmployees, setAllEmployees] = useState<Employee[]>([]);
@@ -59,6 +63,38 @@ const Eligibility: React.FC = () => {
       }
       
       setAllEmployees(allEmployeesData);
+
+      const { data: eligibilityData, error: eligibilityError } = await supabase
+        .from('eligibility_status')
+        .select('manway_no, is_eligible')
+        .eq('date', date)
+        .eq('type', type);
+
+      if (eligibilityError) {
+        console.error('Error fetching eligibility status:', eligibilityError);
+      } else {
+        const eligibleManwayNos = new Set(
+          eligibilityData.filter(e => e.is_eligible).map(e => e.manway_no)
+        );
+        setSelectedEmployees(eligibleManwayNos);
+      }
+
+      const { data: swapData, error: swapError } = await supabase
+        .from('swaps')
+        .select('original_manway_no, replacement_manway_no')
+        .eq('date', date)
+        .eq('type', type);
+
+      if (swapError) {
+        console.error('Error fetching swaps:', swapError);
+      } else {
+        const swaps: Record<string, Employee | null> = {};
+        for (const swap of swapData) {
+          const replacement = allEmployeesData.find(emp => emp.manway_no === swap.replacement_manway_no);
+          swaps[swap.original_manway_no] = replacement || null;
+        }
+        setSwappedEmployees(swaps);
+      }
 
       if (type === 'playday') {
         const selectedDate = new Date(date);
@@ -236,16 +272,26 @@ const Eligibility: React.FC = () => {
     }
   }, [type]);
 
-  const handleCheckboxChange = (manwayNo: string) => {
-    setSelectedEmployees(prev => {
-      const newSelection = new Set(prev);
-      if (newSelection.has(manwayNo)) {
+  const handleCheckboxChange = async (manwayNo: string) => {
+    if (!userIsAdmin) return;
+
+    const newSelection = new Set(selectedEmployees);
+    const isCurrentlySelected = newSelection.has(manwayNo);
+    
+    const { error } = await supabase
+      .from('eligibility_status')
+      .upsert({ manway_no: manwayNo, date, type, is_eligible: !isCurrentlySelected }, { onConflict: 'manway_no,date,type' });
+
+    if (error) {
+      console.error('Error updating eligibility status:', error);
+    } else {
+      if (isCurrentlySelected) {
         newSelection.delete(manwayNo);
       } else {
         newSelection.add(manwayNo);
       }
-      return newSelection;
-    });
+      setSelectedEmployees(newSelection);
+    }
   };
 
   const openSwapModal = (employee: Employee) => {
@@ -258,22 +304,46 @@ const Eligibility: React.FC = () => {
     setIsSwapModalOpen(false);
   };
 
-  const handleSwap = (replacementEmployee: Employee) => {
+  const handleSwap = async (replacementEmployee: Employee) => {
     if (employeeToSwap) {
-      setSwappedEmployees(prev => ({
-        ...prev,
-        [employeeToSwap.manway_no]: replacementEmployee,
-      }));
+      const { error } = await supabase
+        .from('swaps')
+        .upsert({
+          date,
+          type,
+          original_manway_no: employeeToSwap.manway_no,
+          replacement_manway_no: replacementEmployee.manway_no,
+        }, { onConflict: 'date,type,original_manway_no' });
+
+      if (error) {
+        console.error('Error saving swap:', error);
+      } else {
+        setSwappedEmployees(prev => ({
+          ...prev,
+          [employeeToSwap.manway_no]: replacementEmployee,
+        }));
+      }
     }
     closeSwapModal();
   };
 
-  const handleResetSwap = (originalManwayNo: string) => {
-    setSwappedEmployees(prev => {
-      const newSwaps = { ...prev };
-      delete newSwaps[originalManwayNo];
-      return newSwaps;
-    });
+  const handleResetSwap = async (originalManwayNo: string) => {
+    const { error } = await supabase
+      .from('swaps')
+      .delete()
+      .eq('date', date)
+      .eq('type', type)
+      .eq('original_manway_no', originalManwayNo);
+
+    if (error) {
+      console.error('Error deleting swap:', error);
+    } else {
+      setSwappedEmployees(prev => {
+        const newSwaps = { ...prev };
+        delete newSwaps[originalManwayNo];
+        return newSwaps;
+      });
+    }
   };
 
   const formatDate = (isoDate: string) => {
@@ -400,6 +470,7 @@ const Eligibility: React.FC = () => {
           <tbody>
             {employees
               .filter(employee => !Object.values(swappedEmployees).some(swapped => swapped?.manway_no === employee.manway_no))
+              .filter(employee => userIsAdmin || selectedEmployees.has(employee.manway_no))
               .map(employee => (
               <tr key={employee.manway_no}>
                 <td style={{ textAlign: 'left' }}>{employee.serial_number}</td>
@@ -442,9 +513,10 @@ const Eligibility: React.FC = () => {
                     type="checkbox"
                     checked={selectedEmployees.has(employee.manway_no)}
                     onChange={() => handleCheckboxChange(employee.manway_no)}
+                    disabled={!userIsAdmin}
                   />
                 </td>
-                {(type === 'phd' || type === 'playday') && (
+                {userIsAdmin && (type === 'phd' || type === 'playday') && (
                   <td>
                     <button onClick={() => openSwapModal(employee)}>Swap</button>
                     {swappedEmployees[employee.manway_no] && (
@@ -548,4 +620,4 @@ const Eligibility: React.FC = () => {
   );
 };
 
-export default Eligibility;
+export default MarkEligibility;
