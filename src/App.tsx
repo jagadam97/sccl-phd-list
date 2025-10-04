@@ -90,27 +90,37 @@ const Auth = () => {
 };
 
 const MainApp = ({ user }: { user: User }) => {
+  const [isMenuOpen, setIsMenuOpen] = useState(false);
+
   const handleLogout = async () => {
     await signOut(auth);
+  };
+
+  const toggleMenu = () => {
+    setIsMenuOpen(!isMenuOpen);
+  };
+
+  const closeMenu = () => {
+    setIsMenuOpen(false);
   };
 
   return (
     <>
       <nav>
         <div className="nav-left">
-          <div className="dropdown">
-            <button className="menu-button">
+          <div className={`dropdown ${isMenuOpen ? 'open' : ''}`}>
+            <button className="menu-button" onClick={toggleMenu}>
               &#9776; Menu
             </button>
             <div className="dropdown-content">
-              <Link to="/">Take Attendance</Link>
-              <Link to="/eligibility">Eligibility</Link>
-              <Link to="/add-employee">Add Employee</Link>
-              <Link to="/employees">Employee List</Link>
-              <Link to="/holidays">Manage Holidays</Link>
-              <Link to="/report">Weekly Report</Link>
-              <Link to="/attendance-report">Attendance Report</Link>
-              <Link to="/tracker">Serial Tracker</Link>
+              <Link to="/" onClick={closeMenu}>Take Attendance</Link>
+              <Link to="/eligibility" onClick={closeMenu}>Eligibility</Link>
+              <Link to="/add-employee" onClick={closeMenu}>Add Employee</Link>
+              <Link to="/employees" onClick={closeMenu}>Employee List</Link>
+              <Link to="/holidays" onClick={closeMenu}>Manage Holidays</Link>
+              <Link to="/report" onClick={closeMenu}>Weekly Report</Link>
+              <Link to="/attendance-report" onClick={closeMenu}>Attendance Report</Link>
+              <Link to="/tracker" onClick={closeMenu}>Serial Tracker</Link>
             </div>
           </div>
         </div>
