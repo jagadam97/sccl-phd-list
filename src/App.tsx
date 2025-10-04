@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, Link, Navigate } from 'react-router-dom';
-import { auth } from './firebase';
+import { auth, googleProvider } from './firebase';
 import {
   createUserWithEmailAndPassword,
   signInWithEmailAndPassword,
+  signInWithPopup,
   onAuthStateChanged,
   signOut,
   User
@@ -67,6 +68,14 @@ const Auth = () => {
     }
   };
 
+  const handleGoogleLogin = async () => {
+    try {
+      await signInWithPopup(auth, googleProvider);
+    } catch (err: any) {
+      setError(err.message);
+    }
+  };
+
   return (
     <div className="auth-container">
       <h2>Login or Sign Up</h2>
@@ -84,6 +93,7 @@ const Auth = () => {
       />
       <button onClick={handleLogin}>Login</button>
       <button onClick={handleSignUp}>Sign Up</button>
+      <button onClick={handleGoogleLogin}>Sign in with Google</button>
       {error && <p className="error">{error}</p>}
     </div>
   );
@@ -91,6 +101,7 @@ const Auth = () => {
 
 const MainApp = ({ user }: { user: User }) => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const userIsAdmin = user.email === 'jgireesa@gmail.com';
 
   const handleLogout = async () => {
     await signOut(auth);
@@ -115,12 +126,16 @@ const MainApp = ({ user }: { user: User }) => {
             <div className="dropdown-content">
               <Link to="/" onClick={closeMenu}>Take Attendance</Link>
               <Link to="/eligibility" onClick={closeMenu}>Eligibility</Link>
-              <Link to="/add-employee" onClick={closeMenu}>Add Employee</Link>
-              <Link to="/employees" onClick={closeMenu}>Employee List</Link>
-              <Link to="/holidays" onClick={closeMenu}>Manage Holidays</Link>
+              {userIsAdmin && (
+                <>
+                  <Link to="/add-employee" onClick={closeMenu}>Add Employee</Link>
+                  <Link to="/employees" onClick={closeMenu}>Employee List</Link>
+                  <Link to="/holidays" onClick={closeMenu}>Manage Holidays</Link>
+                  <Link to="/tracker" onClick={closeMenu}>Serial Tracker</Link>
+                </>
+              )}
               <Link to="/report" onClick={closeMenu}>Weekly Report</Link>
               <Link to="/attendance-report" onClick={closeMenu}>Attendance Report</Link>
-              <Link to="/tracker" onClick={closeMenu}>Serial Tracker</Link>
             </div>
           </div>
         </div>
@@ -132,12 +147,16 @@ const MainApp = ({ user }: { user: User }) => {
         <Routes>
           <Route path="/" element={<TakeAttendance />} />
           <Route path="/eligibility" element={<Eligibility />} />
-          <Route path="/add-employee" element={<AddEmployee />} />
-          <Route path="/employees" element={<EmployeeList />} />
-          <Route path="/holidays" element={<PublicHolidays />} />
+          {userIsAdmin && (
+            <>
+              <Route path="/add-employee" element={<AddEmployee />} />
+              <Route path="/employees" element={<EmployeeList />} />
+              <Route path="/holidays" element={<PublicHolidays />} />
+              <Route path="/tracker" element={<LastSerialTracker />} />
+            </>
+          )}
           <Route path="/report" element={<WeeklyReport />} />
           <Route path="/attendance-report" element={<AttendanceReport />} />
-          <Route path="/tracker" element={<LastSerialTracker />} />
         </Routes>
       </main>
     </>
