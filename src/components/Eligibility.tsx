@@ -302,9 +302,9 @@ const Eligibility: React.FC = () => {
               </tr>
             </thead>
             <tbody>
-              {reportEmployees.map(employee => (
+              {reportEmployees.map((employee, index) => (
                 <tr key={employee.manway_no}>
-                  <td style={{ border: '1px solid #ddd', padding: '8px', textAlign: 'left' }}>{employee.serial_number}</td>
+                  <td style={{ border: '1px solid #ddd', padding: '8px', textAlign: 'left' }}>{index + 1}</td>
                   <td style={{ border: '1px solid #ddd', padding: '8px', textAlign: 'left' }}>{employee.manway_no}</td>
                   <td style={{ border: '1px solid #ddd', padding: '8px', textAlign: 'left' }}>{employee.name}</td>
                 </tr>
