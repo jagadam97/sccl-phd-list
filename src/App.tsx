@@ -16,7 +16,6 @@ import WeeklyReport from './components/WeeklyReport';
 import LastSerialTracker from './components/LastSerialTracker';
 import PublicHolidays from './components/PublicHolidays';
 import Eligibility from './components/Eligibility';
-import AttendanceReport from './components/AttendanceReport';
 import './App.css';
 
 function App() {
