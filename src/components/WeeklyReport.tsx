@@ -162,7 +162,7 @@ const WeeklyReport = () => {
           disabled={exporting}
           className="export-button"
         >
-          {exporting ? 'Exporting...' : 'Export as JPEG'}
+          {exporting ? 'Exporting...' : 'Download'}
         </button>
       </div>
       <div className="date-picker-container">

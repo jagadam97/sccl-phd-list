@@ -11,11 +11,17 @@ interface Employee {
 const Eligibility: React.FC = () => {
   const [type, setType] = useState<'playday' | 'overtime' | 'phd'>('overtime');
   const [employees, setEmployees] = useState<Employee[]>([]);
+  const [allEmployees, setAllEmployees] = useState<Employee[]>([]);
   const [selectedEmployees, setSelectedEmployees] = useState<Set<string>>(new Set());
+  const [swappedEmployees, setSwappedEmployees] = useState<Record<string, Employee | null>>({});
+  const [isSwapModalOpen, setIsSwapModalOpen] = useState(false);
+  const [employeeToSwap, setEmployeeToSwap] = useState<Employee | null>(null);
   const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState('');
   const [publicHolidays, setPublicHolidays] = useState<string[]>([]);
+  const [playdayCounts, setPlaydayCounts] = useState<Record<string, number>>({});
+  const [phdCounts, setPhdCounts] = useState<Record<string, number>>({});
   const reportRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -41,7 +47,7 @@ const Eligibility: React.FC = () => {
         }
       }
       
-      const { data: allEmployees, error: employeesError } = await supabase
+      const { data: allEmployeesData, error: employeesError } = await supabase
         .from('employees')
         .select('manway_no, name, serial_number')
         .order('serial_number', { ascending: true });
@@ -51,6 +57,73 @@ const Eligibility: React.FC = () => {
         setLoading(false);
         return;
       }
+      
+      setAllEmployees(allEmployeesData);
+
+      if (type === 'playday') {
+        const selectedDate = new Date(date);
+        const year = selectedDate.getFullYear();
+        const month = selectedDate.getMonth();
+        
+        const monthStartDate = new Date(year, month, 1).toISOString().split('T')[0];
+        const monthEndDate = new Date(year, month + 1, 0).toISOString().split('T')[0];
+
+        const { data: monthAttendance, error: monthAttendanceError } = await supabase
+          .from('attendance')
+          .select('manway_no, date, present')
+          .gte('date', monthStartDate)
+          .lte('date', monthEndDate);
+
+        if (monthAttendanceError) {
+          console.error('Error fetching month attendance for playday counts:', monthAttendanceError);
+        } else {
+          const counts: Record<string, number> = {};
+          for (const record of monthAttendance) {
+            const recordDate = new Date(record.date + 'T00:00:00');
+            if (record.present && recordDate.getUTCDay() === 0) {
+              counts[record.manway_no] = (counts[record.manway_no] || 0) + 1;
+            }
+          }
+          setPlaydayCounts(counts);
+        }
+      } else {
+        setPlaydayCounts({});
+      }
+
+      if (type === 'phd') {
+        const currentYear = new Date(date).getFullYear();
+        const yearStartDate = `${currentYear}-01-01`;
+        const yearEndDate = `${currentYear}-12-31`;
+
+        const { data: yearPublicHolidays, error: publicHolidaysError } = await supabase
+          .from('public_holidays')
+          .select('date')
+          .gte('date', yearStartDate)
+          .lte('date', yearEndDate);
+
+        if (publicHolidaysError) {
+          console.error('Error fetching public holidays for PHD counts:', publicHolidaysError);
+        } else {
+          const holidayDates = yearPublicHolidays.map(h => h.date);
+          const { data: holidayAttendance, error: holidayAttendanceError } = await supabase
+            .from('attendance')
+            .select('manway_no, present')
+            .in('date', holidayDates)
+            .eq('present', true);
+
+          if (holidayAttendanceError) {
+            console.error('Error fetching holiday attendance for PHD counts:', holidayAttendanceError);
+          } else {
+            const counts: Record<string, number> = {};
+            for (const record of holidayAttendance) {
+              counts[record.manway_no] = (counts[record.manway_no] || 0) + 1;
+            }
+            setPhdCounts(counts);
+          }
+        }
+      } else {
+        setPhdCounts({});
+      }
 
       if (type === 'overtime') {
         const { data: presentEmployees, error: attendanceError } = await supabase
@@ -59,12 +132,12 @@ const Eligibility: React.FC = () => {
           .eq('date', date)
           .eq('present', true);
 
-        let eligibleEmployees = allEmployees;
+        let eligibleEmployees = allEmployeesData;
         if (attendanceError) {
           console.error('Error fetching attendance for eligibility:', attendanceError);
         } else {
           const presentManwayNos = new Set(presentEmployees.map(emp => emp.manway_no));
-          eligibleEmployees = allEmployees.filter(emp => presentManwayNos.has(emp.manway_no));
+          eligibleEmployees = allEmployeesData.filter(emp => presentManwayNos.has(emp.manway_no));
         }
         
         const nextSerial = startSerial + 1;
@@ -75,8 +148,8 @@ const Eligibility: React.FC = () => {
 
       } else if (type === 'phd') {
         const nextSerial = startSerial + 1;
-        const employeesAfterStart = allEmployees.filter(emp => emp.serial_number >= nextSerial);
-        const employeesBeforeStart = allEmployees.filter(emp => emp.serial_number < nextSerial);
+        const employeesAfterStart = allEmployeesData.filter(emp => emp.serial_number >= nextSerial);
+        const employeesBeforeStart = allEmployeesData.filter(emp => emp.serial_number < nextSerial);
         const sortedEmployees = [...employeesAfterStart, ...employeesBeforeStart];
         setEmployees(sortedEmployees);
 
@@ -112,7 +185,7 @@ const Eligibility: React.FC = () => {
           } else {
             const holidayDates = new Set(holidaysData.map(h => h.date));
             
-            const attendanceByUser = allEmployees.reduce((acc, emp) => {
+            const attendanceByUser = allEmployeesData.reduce((acc, emp) => {
               acc[emp.manway_no] = new Set<string>();
               return acc;
             }, {} as Record<string, Set<string>>);
@@ -132,14 +205,14 @@ const Eligibility: React.FC = () => {
             });
 
             const eligibleManwayNos = Object.keys(attendanceByUser).filter(manwayNo => attendanceByUser[manwayNo].size >= 4);
-            const eligibleEmployees = allEmployees.filter(emp => eligibleManwayNos.includes(emp.manway_no));
+            const eligibleEmployees = allEmployeesData.filter(emp => eligibleManwayNos.includes(emp.manway_no));
             setEmployees(eligibleEmployees);
           }
         } else {
           setEmployees([]);
         }
       } else {
-        setEmployees(allEmployees);
+        setEmployees(allEmployeesData);
       }
       
       setLoading(false);
@@ -172,6 +245,34 @@ const Eligibility: React.FC = () => {
         newSelection.add(manwayNo);
       }
       return newSelection;
+    });
+  };
+
+  const openSwapModal = (employee: Employee) => {
+    setEmployeeToSwap(employee);
+    setIsSwapModalOpen(true);
+  };
+
+  const closeSwapModal = () => {
+    setEmployeeToSwap(null);
+    setIsSwapModalOpen(false);
+  };
+
+  const handleSwap = (replacementEmployee: Employee) => {
+    if (employeeToSwap) {
+      setSwappedEmployees(prev => ({
+        ...prev,
+        [employeeToSwap.manway_no]: replacementEmployee,
+      }));
+    }
+    closeSwapModal();
+  };
+
+  const handleResetSwap = (originalManwayNo: string) => {
+    setSwappedEmployees(prev => {
+      const newSwaps = { ...prev };
+      delete newSwaps[originalManwayNo];
+      return newSwaps;
     });
   };
 
@@ -223,6 +324,31 @@ const Eligibility: React.FC = () => {
     return null;
   };
 
+  const getAvailableForSwap = () => {
+    if (!employeeToSwap) return [];
+
+    const involvedManwayNos = new Set<string>();
+    for (const key in swappedEmployees) {
+        if (key !== employeeToSwap.manway_no) {
+            involvedManwayNos.add(key);
+            const replacement = swappedEmployees[key];
+            if (replacement) {
+                involvedManwayNos.add(replacement.manway_no);
+            }
+        }
+    }
+
+    return allEmployees.filter(emp => {
+        if (emp.manway_no === employeeToSwap.manway_no) {
+            return false;
+        }
+        if (involvedManwayNos.has(emp.manway_no)) {
+            return false;
+        }
+        return true;
+    });
+  };
+
   const title = `${type.charAt(0).toUpperCase() + type.slice(1)} Eligibility`;
   const reportEmployees = employees.filter(emp => selectedEmployees.has(emp.manway_no));
 
@@ -268,14 +394,49 @@ const Eligibility: React.FC = () => {
               <th style={{ textAlign: 'left' }}>Manway No.</th>
               <th style={{ textAlign: 'left' }}>Name</th>
               <th style={{ textAlign: 'left' }}>Eligible</th>
+              {(type === 'phd' || type === 'playday') && <th style={{ textAlign: 'left' }}>Actions</th>}
             </tr>
           </thead>
           <tbody>
-            {employees.map(employee => (
+            {employees
+              .filter(employee => !Object.values(swappedEmployees).some(swapped => swapped?.manway_no === employee.manway_no))
+              .map(employee => (
               <tr key={employee.manway_no}>
                 <td style={{ textAlign: 'left' }}>{employee.serial_number}</td>
-                <td style={{ textAlign: 'left' }}>{employee.manway_no}</td>
-                <td style={{ textAlign: 'left' }}>{employee.name}</td>
+                <td style={{ textAlign: 'left' }}>
+                  {swappedEmployees[employee.manway_no] ? (
+                    <>
+                      <span style={{ textDecoration: 'line-through' }}>{employee.manway_no}</span>
+                      <br />
+                      <span>{swappedEmployees[employee.manway_no]?.manway_no}</span>
+                    </>
+                  ) : (
+                    employee.manway_no
+                  )}
+                </td>
+                <td style={{ textAlign: 'left' }}>
+                  {swappedEmployees[employee.manway_no] ? (
+                    <>
+                      <span style={{ textDecoration: 'line-through' }}>
+                        {employee.name}
+                        {type === 'playday' && ` (${playdayCounts[employee.manway_no] || 0})`}
+                        {type === 'phd' && ` (${phdCounts[employee.manway_no] || 0})`}
+                      </span>
+                      <br />
+                      <span>
+                        {swappedEmployees[employee.manway_no]?.name}
+                        {type === 'playday' && ` (${playdayCounts[swappedEmployees[employee.manway_no]!.manway_no] || 0})`}
+                        {type === 'phd' && ` (${phdCounts[swappedEmployees[employee.manway_no]!.manway_no] || 0})`}
+                      </span>
+                    </>
+                  ) : (
+                    <>
+                      {employee.name}
+                      {type === 'playday' && ` (${playdayCounts[employee.manway_no] || 0})`}
+                      {type === 'phd' && ` (${phdCounts[employee.manway_no] || 0})`}
+                    </>
+                  )}
+                </td>
                 <td>
                   <input
                     type="checkbox"
@@ -283,11 +444,56 @@ const Eligibility: React.FC = () => {
                     onChange={() => handleCheckboxChange(employee.manway_no)}
                   />
                 </td>
+                {(type === 'phd' || type === 'playday') && (
+                  <td>
+                    <button onClick={() => openSwapModal(employee)}>Swap</button>
+                    {swappedEmployees[employee.manway_no] && (
+                      <button onClick={() => handleResetSwap(employee.manway_no)} style={{ marginLeft: '5px', backgroundColor: '#dc3545' }}>
+                        Reset
+                      </button>
+                    )}
+                  </td>
+                )}
               </tr>
             ))}
           </tbody>
         </table>
       </div>
+
+      {isSwapModalOpen && (
+        <div className="modal-overlay">
+          <div className="modal-content">
+            <h3>Replace {employeeToSwap?.name}</h3>
+            <div className="table-container">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Manway No.</th>
+                    <th>Name</th>
+                    <th>Action</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {getAvailableForSwap().map(emp => (
+                    <tr key={emp.manway_no}>
+                      <td>{emp.manway_no}</td>
+                      <td>
+                        {emp.name}
+                        {type === 'playday' && ` (${playdayCounts[emp.manway_no] || 0})`}
+                        {type === 'phd' && ` (${phdCounts[emp.manway_no] || 0})`}
+                      </td>
+                      <td>
+                        <button onClick={() => handleSwap(emp)}>Select</button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <button onClick={closeSwapModal}>Cancel</button>
+          </div>
+        </div>
+      )}
 
       <div style={{ position: 'absolute', left: '-9999px', top: '-9999px' }}>
         <div id="report-content" ref={reportRef} style={{ padding: '20px', backgroundColor: 'white', display: 'inline-block' }}>
@@ -302,13 +508,33 @@ const Eligibility: React.FC = () => {
               </tr>
             </thead>
             <tbody>
-              {reportEmployees.map((employee, index) => (
-                <tr key={employee.manway_no}>
-                  <td style={{ border: '1px solid #ddd', padding: '8px', textAlign: 'left' }}>{index + 1}</td>
-                  <td style={{ border: '1px solid #ddd', padding: '8px', textAlign: 'left' }}>{employee.manway_no}</td>
-                  <td style={{ border: '1px solid #ddd', padding: '8px', textAlign: 'left' }}>{employee.name}</td>
-                </tr>
-              ))}
+              {reportEmployees.map((employee, index) => {
+                const replacement = swappedEmployees[employee.manway_no];
+                return (
+                  <tr key={employee.manway_no}>
+                    <td style={{ border: '1px solid #ddd', padding: '8px', textAlign: 'left' }}>{index + 1}</td>
+                    {replacement ? (
+                      <>
+                        <td style={{ border: '1px solid #ddd', padding: '8px', textAlign: 'left' }}>
+                          <span style={{ textDecoration: 'line-through' }}>{employee.manway_no}</span>
+                          <br />
+                          {replacement.manway_no}
+                        </td>
+                        <td style={{ border: '1px solid #ddd', padding: '8px', textAlign: 'left' }}>
+                          <span style={{ textDecoration: 'line-through' }}>{employee.name}</span>
+                          <br />
+                          {replacement.name}
+                        </td>
+                      </>
+                    ) : (
+                      <>
+                        <td style={{ border: '1px solid #ddd', padding: '8px', textAlign: 'left' }}>{employee.manway_no}</td>
+                        <td style={{ border: '1px solid #ddd', padding: '8px', textAlign: 'left' }}>{employee.name}</td>
+                      </>
+                    )}
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>
