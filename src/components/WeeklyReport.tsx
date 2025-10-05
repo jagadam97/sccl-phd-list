@@ -23,6 +23,7 @@ interface PublicHoliday {
 const WeeklyReport = () => {
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [attendance, setAttendance] = useState<AttendanceRecord[]>([]);
+  const [otAttendance, setOtAttendance] = useState<AttendanceRecord[]>([]);
   const [publicHolidays, setPublicHolidays] = useState<PublicHoliday[]>([]);
   const [week, setWeek] = useState(new Date());
   const [loading, setLoading] = useState(true);
@@ -65,6 +66,19 @@ const WeeklyReport = () => {
         setAttendance(attendanceData);
       }
 
+      // Fetch OT attendance for the week
+      const { data: otAttendanceData, error: otAttendanceError } = await supabase
+        .from('overtime_attendance')
+        .select('*')
+        .gte('date', format(currentWeekStart, 'yyyy-MM-dd'))
+        .lte('date', format(currentWeekEnd, 'yyyy-MM-dd'));
+
+      if (otAttendanceError) {
+        console.error('Error fetching OT attendance:', otAttendanceError);
+      } else {
+        setOtAttendance(otAttendanceData);
+      }
+
       // Fetch public holidays for the week
       const { data: holidaysData, error: holidaysError } = await supabase
         .from('public_holidays')
@@ -97,20 +111,28 @@ const WeeklyReport = () => {
   };
 
   const getAttendanceStatus = (manwayNo: string, date: Date) => {
+    const dateStr = format(date, 'yyyy-MM-dd');
+
+    const otRecord = otAttendance.find(
+      a => a.manway_no === manwayNo && a.date === dateStr
+    );
+
+    if (otRecord && otRecord.present) {
+      return <span style={{ color: 'purple' }}>OT</span>;
+    }
+
     const record = attendance.find(
-      a => a.manway_no === manwayNo && a.date === format(date, 'yyyy-MM-dd')
+      a => a.manway_no === manwayNo && a.date === dateStr
     );
     
     if (!record) {
       return '-';
     }
     
-    // If the date is a public holiday and person is present, show PHD
     if (isPublicHoliday(date) && record.present) {
       return <span style={{ color: 'blue' }}>PHD</span>;
     }
     
-    // For all other cases: present gets ✔, absent gets ❌ (red cross)
     return record.present ? <span style={{ color: 'green' }}>✔</span> : <span style={{ color: 'red' }}>❌</span>;
   };
 
