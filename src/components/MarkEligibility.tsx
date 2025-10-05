@@ -26,6 +26,7 @@ const MarkEligibility: React.FC<EligibilityProps> = ({ userIsAdmin }) => {
   const [publicHolidays, setPublicHolidays] = useState<string[]>([]);
   const [playdayCounts, setPlaydayCounts] = useState<Record<string, number>>({});
   const [phdCounts, setPhdCounts] = useState<Record<string, number>>({});
+  const [otCounts, setOtCounts] = useState<Record<string, number>>({});
   const [playDayEligible, setPlayDayEligible] = useState<string[]>([]);
   const reportRef = useRef<HTMLDivElement>(null);
 
@@ -95,6 +96,35 @@ const MarkEligibility: React.FC<EligibilityProps> = ({ userIsAdmin }) => {
           swaps[swap.original_manway_no] = replacement || null;
         }
         setSwappedEmployees(swaps);
+      }
+
+      if (type === 'overtime') {
+        const selectedDate = new Date(date);
+        const year = selectedDate.getFullYear();
+        const month = selectedDate.getMonth();
+        
+        const monthStartDate = new Date(year, month, 1).toISOString().split('T')[0];
+        const monthEndDate = new Date(year, month + 1, 0).toISOString().split('T')[0];
+
+        const { data: monthOtAttendance, error: monthOtAttendanceError } = await supabase
+          .from('overtime_attendance')
+          .select('manway_no, present')
+          .gte('date', monthStartDate)
+          .lte('date', monthEndDate);
+
+        if (monthOtAttendanceError) {
+          console.error('Error fetching month OT attendance for OT counts:', monthOtAttendanceError);
+        } else {
+          const counts: Record<string, number> = {};
+          for (const record of monthOtAttendance) {
+            if (record.present) {
+              counts[record.manway_no] = (counts[record.manway_no] || 0) + 1;
+            }
+          }
+          setOtCounts(counts);
+        }
+      } else {
+        setOtCounts({});
       }
 
       if (type === 'playday') {
@@ -547,6 +577,7 @@ const MarkEligibility: React.FC<EligibilityProps> = ({ userIsAdmin }) => {
                       {employee.name}
                       {type === 'playday' && ` (${playdayCounts[employee.manway_no] || 0})`}
                       {type === 'phd' && ` (${phdCounts[employee.manway_no] || 0})`}
+                      {type === 'overtime' && ` (${otCounts[employee.manway_no] || 0})`}
                     </>
                   )}
                 </td>
@@ -595,6 +626,7 @@ const MarkEligibility: React.FC<EligibilityProps> = ({ userIsAdmin }) => {
                         {emp.name}
                         {type === 'playday' && ` (${playdayCounts[emp.manway_no] || 0})`}
                         {type === 'phd' && ` (${phdCounts[emp.manway_no] || 0})`}
+                        {type === 'overtime' && ` (${otCounts[emp.manway_no] || 0})`}
                       </td>
                       <td>
                         <button onClick={() => handleSwap(emp)}>Select</button>

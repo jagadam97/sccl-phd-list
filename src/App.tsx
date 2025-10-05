@@ -16,7 +16,7 @@ import LastSerialTracker from './components/LastSerialTracker';
 import PublicHolidays from './components/PublicHolidays';
 import MarkEligibility from './components/MarkEligibility';
 import ViewEligibility from './components/ViewEligibility';
-import AttendanceReport from './components/AttendanceReport';
+import MarkOtAttendance from './components/MarkOtAttendance';
 import './App.css';
 
 function App() {
@@ -105,11 +105,11 @@ const MainApp = ({ user }: { user: User }) => {
                 <>
                   <Link to="/" onClick={closeMenu}>Take Attendance</Link>
                   <Link to="/mark-eligibility" onClick={closeMenu}>Mark Eligibility</Link>
+                  <Link to="/mark-ot-attendance" onClick={closeMenu}>Mark OT Attendance</Link>
                   <Link to="/add-employee" onClick={closeMenu}>Add Employee</Link>
                   <Link to="/employees" onClick={closeMenu}>Employee List</Link>
                   <Link to="/holidays" onClick={closeMenu}>Manage Holidays</Link>
                   <Link to="/report" onClick={closeMenu}>Weekly Report</Link>
-                  <Link to="/attendance-report" onClick={closeMenu}>Attendance Report</Link>
                   <Link to="/tracker" onClick={closeMenu}>Serial Tracker</Link>
                 </>
               ) : (
@@ -132,12 +132,12 @@ const MainApp = ({ user }: { user: User }) => {
             <>
               <Route path="/" element={<TakeAttendance />} />
               <Route path="/mark-eligibility" element={<MarkEligibility userIsAdmin={userIsAdmin} />} />
+              <Route path="/mark-ot-attendance" element={<MarkOtAttendance />} />
               <Route path="/add-employee" element={<AddEmployee />} />
               <Route path="/employees" element={<EmployeeList />} />
               <Route path="/holidays" element={<PublicHolidays />} />
               <Route path="/report" element={<WeeklyReport />} />
               <Route path="/tracker" element={<LastSerialTracker />} />
-              <Route path="/attendance-report" element={<AttendanceReport />} />
             </>
           ) : (
             <>
