@@ -204,6 +204,7 @@ const WeeklyReport = () => {
         <thead>
           <tr>
             <th>S.No.</th>
+            <th>Manway No.</th>
             <th>Name</th>
             {weekDays.map(day => (
               <th key={day.toString()}>{format(day, 'EEE dd')}</th>
@@ -214,6 +215,7 @@ const WeeklyReport = () => {
           {employees.map(employee => (
             <tr key={employee.manway_no}>
               <td>{employee.serial_number}</td>
+              <td>{employee.manway_no}</td>
               <td>{employee.name}</td>
               {weekDays.map(day => (
                 <td key={day.toString()} className="attendance-status">
@@ -223,6 +225,7 @@ const WeeklyReport = () => {
             </tr>
           ))}
           <tr className="total-row" style={{ fontWeight: 'bold', borderTop: '2px solid #333' }}>
+            <td></td>
             <td></td>
             <td>Total</td>
             {weekDays.map(day => (
