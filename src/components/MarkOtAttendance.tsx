@@ -152,7 +152,7 @@ const MarkOtAttendance = () => {
       <div className="employee-attendance-list">
         {employees.map((employee) => (
           <div key={employee.manway_no} className="employee-attendance-item">
-            <span>{employee.serial_number}. {employee.name} ({otCounts[employee.manway_no] || 0})</span>
+            <span>{employee.serial_number}. {employee.name} - {employee.manway_no} ({otCounts[employee.manway_no] || 0})</span>
             <input
               type="checkbox"
               checked={attendance.has(employee.manway_no)}

@@ -304,7 +304,7 @@ const TakeAttendance = () => {
       <div className="employee-attendance-list">
         {employees.map((employee) => (
           <div key={employee.manway_no} className="employee-attendance-item">
-            <span>{employee.serial_number}. {employee.name}</span>
+            <span>{employee.serial_number}. {employee.name} - {employee.manway_no}</span>
             <input
               type="checkbox"
               style={getCheckboxStyle(employee.manway_no)}

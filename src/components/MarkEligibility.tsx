@@ -28,6 +28,7 @@ const MarkEligibility: React.FC<EligibilityProps> = ({ userIsAdmin }) => {
   const [phdCounts, setPhdCounts] = useState<Record<string, number>>({});
   const [otCounts, setOtCounts] = useState<Record<string, number>>({});
   const [playDayEligible, setPlayDayEligible] = useState<string[]>([]);
+  const [playdaySerialStart, setPlaydaySerialStart] = useState<number>(0);
   const reportRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -50,6 +51,20 @@ const MarkEligibility: React.FC<EligibilityProps> = ({ userIsAdmin }) => {
           console.error(`Error fetching ${category} serial:`, serialError);
         } else {
           startSerial = serialData.last_serial_number;
+        }
+      } else if (type === 'playday') {
+        // Fetch PlayDay serial tracker
+        const { data: playdaySerialData, error: playdaySerialError } = await supabase
+          .from('last_serials')
+          .select('last_serial_number')
+          .eq('category', 'PlayDay')
+          .single();
+
+        if (playdaySerialError) {
+          console.error('Error fetching PlayDay serial:', playdaySerialError);
+        } else {
+          startSerial = playdaySerialData.last_serial_number;
+          setPlaydaySerialStart(playdaySerialData.last_serial_number);
         }
       }
       
@@ -273,7 +288,14 @@ const MarkEligibility: React.FC<EligibilityProps> = ({ userIsAdmin }) => {
 
             const eligibleManwayNos = Object.keys(attendanceByUser).filter(manwayNo => attendanceByUser[manwayNo].size >= 4);
             const eligibleEmployees = allEmployeesData.filter(emp => eligibleManwayNos.includes(emp.manway_no));
-            setEmployees(eligibleEmployees);
+            
+            // Apply circular ordering based on PlayDay serial tracker
+            const nextSerial = startSerial + 1;
+            const employeesAfterStart = eligibleEmployees.filter(emp => emp.serial_number >= nextSerial);
+            const employeesBeforeStart = eligibleEmployees.filter(emp => emp.serial_number < nextSerial);
+            const sortedEmployees = [...employeesAfterStart, ...employeesBeforeStart];
+            
+            setEmployees(sortedEmployees);
             setPlayDayEligible(eligibleManwayNos);
           }
         } else {
