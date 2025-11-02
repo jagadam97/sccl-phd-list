@@ -13,7 +13,7 @@ interface EligibilityProps {
 }
 
 const MarkEligibility: React.FC<EligibilityProps> = ({ userIsAdmin }) => {
-  const [type, setType] = useState<'playday' | 'overtime' | 'phd'>('overtime');
+  const [type, setType] = useState<'playday' | 'overtime' | 'phd' | 'lunch_continue'>('overtime');
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [allEmployees, setAllEmployees] = useState<Employee[]>([]);
   const [selectedEmployees, setSelectedEmployees] = useState<Set<string>>(new Set());
@@ -27,6 +27,7 @@ const MarkEligibility: React.FC<EligibilityProps> = ({ userIsAdmin }) => {
   const [playdayCounts, setPlaydayCounts] = useState<Record<string, number>>({});
   const [phdCounts, setPhdCounts] = useState<Record<string, number>>({});
   const [otCounts, setOtCounts] = useState<Record<string, number>>({});
+  const [lunchContinueCounts, setLunchContinueCounts] = useState<Record<string, number>>({});
   const [playDayEligible, setPlayDayEligible] = useState<string[]>([]);
   const [playdaySerialStart, setPlaydaySerialStart] = useState<number>(0);
   const reportRef = useRef<HTMLDivElement>(null);
@@ -142,6 +143,36 @@ const MarkEligibility: React.FC<EligibilityProps> = ({ userIsAdmin }) => {
         setOtCounts({});
       }
 
+      if (type === 'lunch_continue') {
+        const selectedDate = new Date(date);
+        const year = selectedDate.getFullYear();
+        const month = selectedDate.getMonth();
+        
+        const monthStartDate = new Date(year, month, 1).toISOString().split('T')[0];
+        const monthEndDate = new Date(year, month + 1, 0).toISOString().split('T')[0];
+
+        const { data: monthEligibility, error: monthEligibilityError } = await supabase
+          .from('eligibility_status')
+          .select('manway_no, is_eligible')
+          .eq('type', 'lunch_continue')
+          .gte('date', monthStartDate)
+          .lte('date', monthEndDate);
+
+        if (monthEligibilityError) {
+          console.error('Error fetching month lunch continue counts:', monthEligibilityError);
+        } else {
+          const counts: Record<string, number> = {};
+          for (const record of monthEligibility) {
+            if (record.is_eligible) {
+              counts[record.manway_no] = (counts[record.manway_no] || 0) + 1;
+            }
+          }
+          setLunchContinueCounts(counts);
+        }
+      } else {
+        setLunchContinueCounts({});
+      }
+
       if (type === 'playday') {
         const selectedDate = new Date(date);
         const year = selectedDate.getFullYear();
@@ -207,7 +238,7 @@ const MarkEligibility: React.FC<EligibilityProps> = ({ userIsAdmin }) => {
         setPhdCounts({});
       }
 
-      if (type === 'overtime') {
+      if (type === 'overtime' || type === 'lunch_continue') {
         const { data: presentEmployees, error: attendanceError } = await supabase
           .from('attendance')
           .select('manway_no')
@@ -222,11 +253,16 @@ const MarkEligibility: React.FC<EligibilityProps> = ({ userIsAdmin }) => {
           eligibleEmployees = allEmployeesData.filter(emp => presentManwayNos.has(emp.manway_no));
         }
         
-        const nextSerial = startSerial + 1;
-        const employeesAfterStart = eligibleEmployees.filter(emp => emp.serial_number >= nextSerial);
-        const employeesBeforeStart = eligibleEmployees.filter(emp => emp.serial_number < nextSerial);
-        const sortedEmployees = [...employeesAfterStart, ...employeesBeforeStart];
-        setEmployees(sortedEmployees);
+        if (type === 'overtime') {
+          const nextSerial = startSerial + 1;
+          const employeesAfterStart = eligibleEmployees.filter(emp => emp.serial_number >= nextSerial);
+          const employeesBeforeStart = eligibleEmployees.filter(emp => emp.serial_number < nextSerial);
+          const sortedEmployees = [...employeesAfterStart, ...employeesBeforeStart];
+          setEmployees(sortedEmployees);
+        } else {
+          // For lunch_continue, just show present employees in serial order
+          setEmployees(eligibleEmployees);
+        }
 
       } else if (type === 'phd') {
         const nextSerial = startSerial + 1;
@@ -525,11 +561,12 @@ const MarkEligibility: React.FC<EligibilityProps> = ({ userIsAdmin }) => {
           <select
             id="eligibility-type"
             value={type}
-            onChange={(e) => setType(e.target.value as 'playday' | 'overtime' | 'phd')}
+            onChange={(e) => setType(e.target.value as 'playday' | 'overtime' | 'phd' | 'lunch_continue')}
           >
             <option value="overtime">Overtime</option>
             <option value="phd">PHD</option>
             <option value="playday">Play Day</option>
+            <option value="lunch_continue">Lunch Continue</option>
           </select>
         </div>
         <div className="date-picker-container">
@@ -600,6 +637,7 @@ const MarkEligibility: React.FC<EligibilityProps> = ({ userIsAdmin }) => {
                       {type === 'playday' && ` (${playdayCounts[employee.manway_no] || 0})`}
                       {type === 'phd' && ` (${phdCounts[employee.manway_no] || 0})`}
                       {type === 'overtime' && ` (${otCounts[employee.manway_no] || 0})`}
+                      {type === 'lunch_continue' && ` (${lunchContinueCounts[employee.manway_no] || 0})`}
                     </>
                   )}
                 </td>
@@ -649,6 +687,7 @@ const MarkEligibility: React.FC<EligibilityProps> = ({ userIsAdmin }) => {
                         {type === 'playday' && ` (${playdayCounts[emp.manway_no] || 0})`}
                         {type === 'phd' && ` (${phdCounts[emp.manway_no] || 0})`}
                         {type === 'overtime' && ` (${otCounts[emp.manway_no] || 0})`}
+                        {type === 'lunch_continue' && ` (${lunchContinueCounts[emp.manway_no] || 0})`}
                       </td>
                       <td>
                         <button onClick={() => handleSwap(emp)}>Select</button>

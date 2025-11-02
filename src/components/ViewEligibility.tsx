@@ -9,7 +9,7 @@ interface Employee {
 }
 
 const ViewEligibility: React.FC = () => {
-  const [type, setType] = useState<'playday' | 'overtime' | 'phd'>('overtime');
+  const [type, setType] = useState<'playday' | 'overtime' | 'phd' | 'lunch_continue'>('overtime');
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [swappedEmployees, setSwappedEmployees] = useState<Record<string, Employee | null>>({});
   const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
@@ -116,11 +116,12 @@ const ViewEligibility: React.FC = () => {
           <select
             id="eligibility-type"
             value={type}
-            onChange={(e) => setType(e.target.value as 'playday' | 'overtime' | 'phd')}
+            onChange={(e) => setType(e.target.value as 'playday' | 'overtime' | 'phd' | 'lunch_continue')}
           >
             <option value="overtime">Overtime</option>
             <option value="phd">PHD</option>
             <option value="playday">Play Day</option>
+            <option value="lunch_continue">Lunch Continue</option>
           </select>
         </div>
         <div className="date-picker-container">
