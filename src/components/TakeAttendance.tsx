@@ -21,11 +21,12 @@ const TakeAttendance = () => {
   useEffect(() => {
     const fetchEmployees = async () => {
       setLoading(true);
-      
-      // Fetch all employees
+
+      // Fetch only active employees
       const { data: allEmployees, error } = await supabase
         .from('employees')
         .select('manway_no, name, serial_number')
+        .eq('is_active', true)
         .order('serial_number', { ascending: true });
 
       if (error) {
