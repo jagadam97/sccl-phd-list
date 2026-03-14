@@ -21,10 +21,11 @@ const MarkOtAttendance = () => {
 
       setLoading(true);
 
-      // Fetch all employees
+      // Fetch only active employees
       const { data: allEmployees, error: employeesError } = await supabase
         .from('employees')
         .select('manway_no, name, serial_number')
+        .eq('is_active', true)
         .order('serial_number', { ascending: true });
 
       if (employeesError) {
