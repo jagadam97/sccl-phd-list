@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { supabase } from '../supabase';
 import { auth } from '../firebase';
 
@@ -29,11 +29,7 @@ const EmployeeList = () => {
   const userEmail = auth.currentUser?.email?.toLowerCase();
   const userIsAdmin = userEmail === 'jgireesa@gmail.com' || userEmail === 'dineshjagadam@gmail.com';
 
-  useEffect(() => {
-    fetchEmployees();
-  }, [showInactive]);
-
-  const fetchEmployees = async () => {
+  const fetchEmployees = useCallback(async () => {
     setLoading(true);
     let query = supabase
       .from('employees')
@@ -52,7 +48,11 @@ const EmployeeList = () => {
       setEmployees(data || []);
     }
     setLoading(false);
-  };
+  }, [showInactive]);
+
+  useEffect(() => {
+    fetchEmployees();
+  }, [fetchEmployees]);
 
   const handleEdit = (employee: Employee) => {
     setEditingEmployee(employee);

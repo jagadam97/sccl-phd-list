@@ -29,7 +29,6 @@ const MarkEligibility: React.FC<EligibilityProps> = ({ userIsAdmin }) => {
   const [otCounts, setOtCounts] = useState<Record<string, number>>({});
   const [lunchContinueCounts, setLunchContinueCounts] = useState<Record<string, number>>({});
   const [playDayEligible, setPlayDayEligible] = useState<string[]>([]);
-  const [playdaySerialStart, setPlaydaySerialStart] = useState<number>(0);
   const reportRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -65,7 +64,6 @@ const MarkEligibility: React.FC<EligibilityProps> = ({ userIsAdmin }) => {
           console.error('Error fetching PlayDay serial:', playdaySerialError);
         } else {
           startSerial = playdaySerialData.last_serial_number;
-          setPlaydaySerialStart(playdaySerialData.last_serial_number);
         }
       }
       
