@@ -65,6 +65,19 @@ const MarkEligibility: React.FC<EligibilityProps> = ({ userIsAdmin }) => {
         } else {
           startSerial = playdaySerialData.last_serial_number;
         }
+      } else if (type === 'lunch_continue') {
+        // Fetch Lunch Continue serial tracker
+        const { data: lunchContinueSerialData, error: lunchContinueSerialError } = await supabase
+          .from('last_serials')
+          .select('last_serial_number')
+          .eq('category', 'Lunch Continue')
+          .single();
+
+        if (lunchContinueSerialError) {
+          console.error('Error fetching Lunch Continue serial:', lunchContinueSerialError);
+        } else {
+          startSerial = lunchContinueSerialData.last_serial_number;
+        }
       }
       
       const { data: allEmployeesData, error: employeesError } = await supabase
@@ -251,14 +264,13 @@ const MarkEligibility: React.FC<EligibilityProps> = ({ userIsAdmin }) => {
           eligibleEmployees = allEmployeesData.filter(emp => presentManwayNos.has(emp.manway_no));
         }
         
-        if (type === 'overtime') {
+        if (type === 'overtime' || type === 'lunch_continue') {
           const nextSerial = startSerial + 1;
           const employeesAfterStart = eligibleEmployees.filter(emp => emp.serial_number >= nextSerial);
           const employeesBeforeStart = eligibleEmployees.filter(emp => emp.serial_number < nextSerial);
           const sortedEmployees = [...employeesAfterStart, ...employeesBeforeStart];
           setEmployees(sortedEmployees);
         } else {
-          // For lunch_continue, just show present employees in serial order
           setEmployees(eligibleEmployees);
         }
 
@@ -469,6 +481,28 @@ const MarkEligibility: React.FC<EligibilityProps> = ({ userIsAdmin }) => {
         return;
       }
     }
+
+    // Update tracker for Lunch Continue
+    if (type === 'lunch_continue') {
+      const selectedEmployeesList = employees.filter(emp => selectedEmployees.has(emp.manway_no));
+      
+      if (selectedEmployeesList.length > 0) {
+        // Get the last employee in the circular order who got Lunch Continue
+        const lastLunchContinueEmployee = selectedEmployeesList[selectedEmployeesList.length - 1];
+        
+        // Update the Lunch Continue serial tracker
+        const { error: trackerError } = await supabase
+          .from('last_serials')
+          .update({ last_serial_number: lastLunchContinueEmployee.serial_number })
+          .eq('category', 'Lunch Continue');
+
+        if (trackerError) {
+          console.error('Error updating Lunch Continue tracker:', trackerError);
+          setMessage('Changes saved, but failed to update Lunch Continue tracker');
+          return;
+        }
+      }
+    }
     
     setMessage('Changes saved. Generating report...');
     await handleDownloadReport();
@@ -593,7 +627,7 @@ const MarkEligibility: React.FC<EligibilityProps> = ({ userIsAdmin }) => {
               <th style={{ textAlign: 'left' }}>Manway No.</th>
               <th style={{ textAlign: 'left' }}>Name</th>
               <th style={{ textAlign: 'left' }}>Eligible</th>
-              {(type === 'phd' || type === 'playday') && <th style={{ textAlign: 'left' }}>Actions</th>}
+              {(type === 'phd' || type === 'playday' || type === 'lunch_continue') && <th style={{ textAlign: 'left' }}>Actions</th>}
             </tr>
           </thead>
           <tbody>
@@ -647,7 +681,7 @@ const MarkEligibility: React.FC<EligibilityProps> = ({ userIsAdmin }) => {
                     disabled={!userIsAdmin}
                   />
                 </td>
-                {userIsAdmin && (type === 'phd' || type === 'playday') && (
+                {userIsAdmin && (type === 'phd' || type === 'playday' || type === 'lunch_continue') && (
                   <td>
                     <button onClick={() => openSwapModal(employee)}>Swap</button>
                     {swappedEmployees[employee.manway_no] && (
