@@ -12,6 +12,7 @@ import AddEmployee from './components/AddEmployee';
 import EmployeeList from './components/EmployeeList';
 import TakeAttendance from './components/TakeAttendance';
 import WeeklyReport from './components/WeeklyReport';
+import MonthlyReport from './components/MonthlyReport';
 import LastSerialTracker from './components/LastSerialTracker';
 import PublicHolidays from './components/PublicHolidays';
 import MarkEligibility from './components/MarkEligibility';
@@ -110,6 +111,7 @@ const MainApp = ({ user }: { user: User }) => {
                   <Link to="/employees" onClick={closeMenu}>Employee List</Link>
                   <Link to="/holidays" onClick={closeMenu}>Manage Holidays</Link>
                   <Link to="/report" onClick={closeMenu}>Weekly Report</Link>
+                  <Link to="/monthly-report" onClick={closeMenu}>Monthly Report</Link>
                   <Link to="/tracker" onClick={closeMenu}>Serial Tracker</Link>
                 </>
               ) : (
@@ -117,6 +119,7 @@ const MainApp = ({ user }: { user: User }) => {
                   <Link to="/employees" onClick={closeMenu}>Employee List</Link>
                   <Link to="/eligibility" onClick={closeMenu}>Eligibility</Link>
                   <Link to="/report" onClick={closeMenu}>Weekly Report</Link>
+                  <Link to="/monthly-report" onClick={closeMenu}>Monthly Report</Link>
                 </>
               )}
             </div>
@@ -137,6 +140,7 @@ const MainApp = ({ user }: { user: User }) => {
               <Route path="/employees" element={<EmployeeList />} />
               <Route path="/holidays" element={<PublicHolidays />} />
               <Route path="/report" element={<WeeklyReport />} />
+              <Route path="/monthly-report" element={<MonthlyReport />} />
               <Route path="/tracker" element={<LastSerialTracker />} />
             </>
           ) : (
@@ -145,6 +149,7 @@ const MainApp = ({ user }: { user: User }) => {
               <Route path="/employees" element={<EmployeeList />} />
               <Route path="/eligibility" element={<ViewEligibility />} />
               <Route path="/report" element={<WeeklyReport />} />
+              <Route path="/monthly-report" element={<MonthlyReport />} />
             </>
           )}
           <Route path="*" element={<Navigate to="/" />} />
