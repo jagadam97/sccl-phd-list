@@ -27,6 +27,39 @@ interface PublicHoliday {
   description: string;
 }
 
+const PAGE_SIZE = 1000;
+
+// A single Supabase response is capped server-side (1000 rows by default), and the
+// cap is applied silently. A month of attendance is employees x days, which is well
+// past that, so every query here has to be paged through explicitly.
+const fetchAllRows = async <T,>(
+  buildQuery: () => any,
+  orderColumns: string[]
+): Promise<{ data: T[] | null; error: any }> => {
+  const rows: T[] = [];
+  let from = 0;
+
+  for (;;) {
+    let query = buildQuery();
+    orderColumns.forEach(column => {
+      query = query.order(column, { ascending: true });
+    });
+
+    const { data, error } = await query.range(from, from + PAGE_SIZE - 1);
+
+    if (error) {
+      return { data: null, error };
+    }
+    if (!data || data.length === 0) {
+      return { data: rows, error: null };
+    }
+
+    rows.push(...data);
+    // Advance by what the server actually returned, in case its cap is below PAGE_SIZE
+    from += data.length;
+  }
+};
+
 const MonthlyReport = () => {
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [attendance, setAttendance] = useState<AttendanceRecord[]>([]);
@@ -50,39 +83,58 @@ const MonthlyReport = () => {
       const endDate = format(endOfMonth(month), 'yyyy-MM-dd');
 
       // Fetch employees
-      const { data: employeesData, error: employeesError } = await supabase
-        .from('employees')
-        .select('manway_no, name, serial_number, is_active')
-        .order('serial_number', { ascending: true });
+      const { data: employeesData, error: employeesError } = await fetchAllRows<Employee>(
+        () =>
+          supabase
+            .from('employees')
+            .select('manway_no, name, serial_number, is_active'),
+        ['serial_number']
+      );
 
       // Fetch attendance for the month
-      const { data: attendanceData, error: attendanceError } = await supabase
-        .from('attendance')
-        .select('*')
-        .gte('date', startDate)
-        .lte('date', endDate);
+      const { data: attendanceData, error: attendanceError } = await fetchAllRows<AttendanceRecord>(
+        () =>
+          supabase
+            .from('attendance')
+            .select('*')
+            .gte('date', startDate)
+            .lte('date', endDate),
+        ['date', 'manway_no']
+      );
 
       // Fetch OT attendance for the month
-      const { data: otAttendanceData, error: otAttendanceError } = await supabase
-        .from('overtime_attendance')
-        .select('*')
-        .gte('date', startDate)
-        .lte('date', endDate);
+      const { data: otAttendanceData, error: otAttendanceError } = await fetchAllRows<AttendanceRecord>(
+        () =>
+          supabase
+            .from('overtime_attendance')
+            .select('*')
+            .gte('date', startDate)
+            .lte('date', endDate),
+        ['date', 'manway_no']
+      );
 
       // Fetch Lunch Continue eligibility for the month
-      const { data: lunchContinueData, error: lunchContinueError } = await supabase
-        .from('eligibility_status')
-        .select('manway_no, date, is_eligible')
-        .eq('type', 'lunch_continue')
-        .gte('date', startDate)
-        .lte('date', endDate);
+      const { data: lunchContinueData, error: lunchContinueError } = await fetchAllRows<EligibilityRecord>(
+        () =>
+          supabase
+            .from('eligibility_status')
+            .select('manway_no, date, is_eligible')
+            .eq('type', 'lunch_continue')
+            .gte('date', startDate)
+            .lte('date', endDate),
+        ['date', 'manway_no']
+      );
 
       // Fetch public holidays for the month
-      const { data: holidaysData, error: holidaysError } = await supabase
-        .from('public_holidays')
-        .select('*')
-        .gte('date', startDate)
-        .lte('date', endDate);
+      const { data: holidaysData, error: holidaysError } = await fetchAllRows<PublicHoliday>(
+        () =>
+          supabase
+            .from('public_holidays')
+            .select('*')
+            .gte('date', startDate)
+            .lte('date', endDate),
+        ['date']
+      );
 
       if (employeesError) {
         console.error('Error fetching employees:', employeesError);
