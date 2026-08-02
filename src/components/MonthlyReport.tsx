@@ -69,6 +69,7 @@ const MonthlyReport = () => {
   const [month, setMonth] = useState(new Date());
   const [loading, setLoading] = useState(true);
   const [exporting, setExporting] = useState(false);
+  const [showSpecialDaysOnly, setShowSpecialDaysOnly] = useState(false);
   const reportRef = useRef<HTMLDivElement>(null);
 
   const monthStart = startOfMonth(month);
@@ -192,6 +193,16 @@ const MonthlyReport = () => {
     return publicHolidays.some(holiday => holiday.date === dateStr);
   };
 
+  const getDayColumnStyle = (date: Date): React.CSSProperties => {
+    if (isPublicHoliday(date)) {
+      return { backgroundColor: '#dbeafe' };
+    }
+    if (date.getDay() === 0) {
+      return { backgroundColor: '#dcfce7' };
+    }
+    return {};
+  };
+
   const getAttendanceStatus = (manwayNo: string, date: Date) => {
     const dateStr = format(date, 'yyyy-MM-dd');
 
@@ -212,7 +223,11 @@ const MonthlyReport = () => {
     }
 
     if (isPublicHoliday(date) && record.present) {
-      return <span style={{ color: 'blue' }}>PHD</span>;
+      return <span style={{ color: '#1d4ed8' }}>PHD</span>;
+    }
+
+    if (date.getDay() === 0 && record.present) {
+      return <span style={{ color: '#166534' }}>PL-Day</span>;
     }
 
     return record.present ? <span style={{ color: 'green' }}>✔</span> : <span style={{ color: 'red' }}>❌</span>;
@@ -302,6 +317,9 @@ const MonthlyReport = () => {
 
   // Only show the PHD column when the month actually has a declared public holiday
   const hasPublicHolidays = publicHolidays.length > 0;
+  const reportDays = showSpecialDaysOnly
+    ? monthDays.filter(day => day.getDay() === 0 || isPublicHoliday(day))
+    : monthDays;
 
   return (
     <div className="table-container">
@@ -323,6 +341,23 @@ const MonthlyReport = () => {
           value={format(month, 'yyyy-MM')}
           onChange={handleMonthChange}
         />
+        <label
+          style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: '0.4rem',
+            marginLeft: '1.5rem',
+            cursor: 'pointer'
+          }}
+        >
+          <input
+            type="checkbox"
+            checked={showSpecialDaysOnly}
+            onChange={event => setShowSpecialDaysOnly(event.target.checked)}
+            style={{ width: 'auto', margin: 0, padding: 0 }}
+          />
+          PHD + PL-Days only
+        </label>
       </div>
       <div ref={reportRef} style={{ backgroundColor: 'white', padding: '20px' }}>
         <h3 style={{ textAlign: 'center', marginBottom: '20px' }}>
@@ -334,13 +369,17 @@ const MonthlyReport = () => {
             <th>S.No.</th>
             <th>Manway No.</th>
             <th>Name</th>
-            <th style={summaryHeaderStyle}>Days</th>
-            <th style={summaryHeaderStyle}>OTs</th>
-            <th style={summaryHeaderStyle}>Lunch Cont.</th>
-            <th style={summaryHeaderStyle}>Plays</th>
-            {hasPublicHolidays && <th style={summaryHeaderStyle}>PHDs</th>}
-            {monthDays.map(day => (
-              <th key={day.toString()}>{format(day, 'd')}</th>
+            {!showSpecialDaysOnly && (
+              <>
+                <th style={summaryHeaderStyle}>Days</th>
+                <th style={summaryHeaderStyle}>OTs</th>
+                <th style={summaryHeaderStyle}>Lunch Cont.</th>
+              </>
+            )}
+            <th style={summaryHeaderStyle}>PL-Days</th>
+            {hasPublicHolidays && <th style={summaryHeaderStyle}>PHD</th>}
+            {reportDays.map(day => (
+              <th key={day.toString()} style={getDayColumnStyle(day)}>{format(day, 'd')}</th>
             ))}
           </tr>
         </thead>
@@ -350,13 +389,21 @@ const MonthlyReport = () => {
               <td>{employee.serial_number}</td>
               <td>{employee.manway_no}</td>
               <td>{employee.name}</td>
-              <td style={summaryCellStyle}>{getTotalDaysAttended(employee.manway_no)}</td>
-              <td style={summaryCellStyle}>{getTotalOts(employee.manway_no)}</td>
-              <td style={summaryCellStyle}>{getTotalLunchContinues(employee.manway_no)}</td>
+              {!showSpecialDaysOnly && (
+                <>
+                  <td style={summaryCellStyle}>{getTotalDaysAttended(employee.manway_no)}</td>
+                  <td style={summaryCellStyle}>{getTotalOts(employee.manway_no)}</td>
+                  <td style={summaryCellStyle}>{getTotalLunchContinues(employee.manway_no)}</td>
+                </>
+              )}
               <td style={summaryCellStyle}>{getTotalPlays(employee.manway_no)}</td>
               {hasPublicHolidays && <td style={summaryCellStyle}>{getTotalPhds(employee.manway_no)}</td>}
-              {monthDays.map(day => (
-                <td key={day.toString()} className="attendance-status">
+              {reportDays.map(day => (
+                <td
+                  key={day.toString()}
+                  className="attendance-status"
+                  style={getDayColumnStyle(day)}
+                >
                   {getAttendanceStatus(employee.manway_no, day)}
                 </td>
               ))}
@@ -366,13 +413,21 @@ const MonthlyReport = () => {
             <td></td>
             <td></td>
             <td>Total</td>
-            <td style={summaryHeaderStyle}>{sumColumn(getTotalDaysAttended)}</td>
-            <td style={summaryHeaderStyle}>{sumColumn(getTotalOts)}</td>
-            <td style={summaryHeaderStyle}>{sumColumn(getTotalLunchContinues)}</td>
+            {!showSpecialDaysOnly && (
+              <>
+                <td style={summaryHeaderStyle}>{sumColumn(getTotalDaysAttended)}</td>
+                <td style={summaryHeaderStyle}>{sumColumn(getTotalOts)}</td>
+                <td style={summaryHeaderStyle}>{sumColumn(getTotalLunchContinues)}</td>
+              </>
+            )}
             <td style={summaryHeaderStyle}>{sumColumn(getTotalPlays)}</td>
             {hasPublicHolidays && <td style={summaryHeaderStyle}>{sumColumn(getTotalPhds)}</td>}
-            {monthDays.map(day => (
-              <td key={day.toString()} className="attendance-status">
+            {reportDays.map(day => (
+              <td
+                key={day.toString()}
+                className="attendance-status"
+                style={getDayColumnStyle(day)}
+              >
                 {getTotalAttendanceForDay(day)}
               </td>
             ))}
