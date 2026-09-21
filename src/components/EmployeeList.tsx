@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { supabase } from '../supabase';
 import { auth } from '../firebase';
+import { isAdmin } from '../admins';
 
 interface Employee {
   serial_number: number;
@@ -30,8 +31,7 @@ const EmployeeList = () => {
   const [hardDeleteInput, setHardDeleteInput] = useState('');
   const [hardDeleteLoading, setHardDeleteLoading] = useState(false);
 
-  const userEmail = auth.currentUser?.email?.toLowerCase();
-  const userIsAdmin = userEmail === 'jgireesa@gmail.com' || userEmail === 'dineshjagadam@gmail.com';
+  const userIsAdmin = isAdmin(auth.currentUser?.email);
 
   const fetchEmployees = useCallback(async () => {
     setLoading(true);

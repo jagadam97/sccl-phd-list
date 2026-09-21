@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, Link, Navigate } from 'react-router-dom';
 import { auth, googleProvider } from './firebase';
+import { isAdmin } from './admins';
 import {
   signInAnonymously,
   signInWithPopup,
@@ -79,7 +80,7 @@ const Auth = () => {
 
 const MainApp = ({ user }: { user: User }) => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
-  const userIsAdmin = user.email?.toLowerCase() === 'jgireesa@gmail.com' || user.email?.toLowerCase() === 'dineshjagadam@gmail.com';
+  const userIsAdmin = isAdmin(user.email);
 
   const handleLogout = async () => {
     await signOut(auth);
