@@ -25,6 +25,10 @@ const EmployeeList = () => {
   const [success, setSuccess] = useState('');
   const [showInactive, setShowInactive] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState<Employee | null>(null);
+  const [hardDeleteConfirm, setHardDeleteConfirm] = useState<Employee | null>(null);
+  const [hardDeleteCounts, setHardDeleteCounts] = useState<Record<string, number> | null>(null);
+  const [hardDeleteInput, setHardDeleteInput] = useState('');
+  const [hardDeleteLoading, setHardDeleteLoading] = useState(false);
 
   const userEmail = auth.currentUser?.email?.toLowerCase();
   const userIsAdmin = userEmail === 'jgireesa@gmail.com' || userEmail === 'dineshjagadam@gmail.com';
@@ -141,6 +145,100 @@ const EmployeeList = () => {
       setError(`Error: ${err.message}`);
     } finally {
       setLoading(false);
+    }
+  };
+
+  // Tables holding per-employee records, keyed by manway_no.
+  const CHILD_TABLES = [
+    'attendance',
+    'phd_attendance',
+    'overtime_attendance',
+    'playday_attendance',
+    'eligibility_status'
+  ];
+
+  const openHardDelete = async (employee: Employee) => {
+    setHardDeleteConfirm(employee);
+    setHardDeleteInput('');
+    setHardDeleteCounts(null);
+
+    const counts: Record<string, number> = {};
+
+    for (const table of CHILD_TABLES) {
+      const { count } = await supabase
+        .from(table)
+        .select('*', { count: 'exact', head: true })
+        .eq('manway_no', employee.manway_no);
+      counts[table] = count || 0;
+    }
+
+    const { count: swapsOriginal } = await supabase
+      .from('swaps')
+      .select('*', { count: 'exact', head: true })
+      .eq('original_manway_no', employee.manway_no);
+    const { count: swapsReplacement } = await supabase
+      .from('swaps')
+      .select('*', { count: 'exact', head: true })
+      .eq('replacement_manway_no', employee.manway_no);
+    counts['swaps'] = (swapsOriginal || 0) + (swapsReplacement || 0);
+
+    setHardDeleteCounts(counts);
+  };
+
+  const closeHardDelete = () => {
+    setHardDeleteConfirm(null);
+    setHardDeleteCounts(null);
+    setHardDeleteInput('');
+  };
+
+  const handleHardDelete = async (employee: Employee) => {
+    setHardDeleteLoading(true);
+    setError('');
+    try {
+      // Children first, then the employee row, so a mid-way failure never
+      // leaves orphaned history behind a deleted employee.
+      for (const table of CHILD_TABLES) {
+        const { error: childError } = await supabase
+          .from(table)
+          .delete()
+          .eq('manway_no', employee.manway_no);
+        if (childError) {
+          throw new Error(`${table}: ${childError.message}`);
+        }
+      }
+
+      const { error: swapOriginalError } = await supabase
+        .from('swaps')
+        .delete()
+        .eq('original_manway_no', employee.manway_no);
+      if (swapOriginalError) {
+        throw new Error(`swaps: ${swapOriginalError.message}`);
+      }
+
+      const { error: swapReplacementError } = await supabase
+        .from('swaps')
+        .delete()
+        .eq('replacement_manway_no', employee.manway_no);
+      if (swapReplacementError) {
+        throw new Error(`swaps: ${swapReplacementError.message}`);
+      }
+
+      const { error: employeeError } = await supabase
+        .from('employees')
+        .delete()
+        .eq('manway_no', employee.manway_no);
+      if (employeeError) {
+        throw new Error(`employees: ${employeeError.message}`);
+      }
+
+      setSuccess(`"${employee.name}" and all their records were permanently deleted.`);
+      closeHardDelete();
+      await fetchEmployees();
+      setTimeout(() => setSuccess(''), 3000);
+    } catch (err: any) {
+      setError(`Error permanently deleting employee — ${err.message}`);
+    } finally {
+      setHardDeleteLoading(false);
     }
   };
 
@@ -368,19 +466,35 @@ const EmployeeList = () => {
                       Delete
                     </button>
                   ) : (
-                    <button
-                      onClick={() => setDeleteConfirm(employee)}
-                      style={{
-                        padding: '5px 15px',
-                        backgroundColor: '#28a745',
-                        color: 'white',
-                        border: 'none',
-                        borderRadius: '4px',
-                        cursor: 'pointer'
-                      }}
-                    >
-                      Restore
-                    </button>
+                    <>
+                      <button
+                        onClick={() => setDeleteConfirm(employee)}
+                        style={{
+                          padding: '5px 15px',
+                          backgroundColor: '#28a745',
+                          color: 'white',
+                          border: 'none',
+                          borderRadius: '4px',
+                          cursor: 'pointer',
+                          marginRight: '5px'
+                        }}
+                      >
+                        Restore
+                      </button>
+                      <button
+                        onClick={() => openHardDelete(employee)}
+                        style={{
+                          padding: '5px 15px',
+                          backgroundColor: '#fff',
+                          color: '#dc3545',
+                          border: '1px solid #dc3545',
+                          borderRadius: '4px',
+                          cursor: 'pointer'
+                        }}
+                      >
+                        Delete Permanently
+                      </button>
+                    </>
                   )}
                 </td>
               )}
@@ -451,6 +565,128 @@ const EmployeeList = () => {
                   border: 'none',
                   borderRadius: '4px',
                   cursor: 'pointer'
+                }}
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Permanent Delete Confirmation Modal */}
+      {hardDeleteConfirm && (
+        <div
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: 'rgba(0, 0, 0, 0.5)',
+            display: 'flex',
+            justifyContent: 'center',
+            alignItems: 'center',
+            zIndex: 1000
+          }}
+          onClick={closeHardDelete}
+        >
+          <div
+            style={{
+              backgroundColor: 'white',
+              padding: '30px',
+              borderRadius: '8px',
+              maxWidth: '460px',
+              width: '90%'
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 style={{ marginTop: 0, color: '#dc3545' }}>Permanently Delete Employee?</h3>
+            <p>
+              This will delete <strong>{hardDeleteConfirm.name}</strong> ({hardDeleteConfirm.manway_no}) and
+              every record belonging to them. <strong>This cannot be undone.</strong>
+            </p>
+
+            {hardDeleteCounts === null ? (
+              <p>Counting affected records...</p>
+            ) : (
+              <div
+                style={{
+                  backgroundColor: '#fff3f3',
+                  border: '1px solid #f5c2c7',
+                  borderRadius: '4px',
+                  padding: '12px',
+                  marginBottom: '15px'
+                }}
+              >
+                <p style={{ margin: '0 0 8px 0', fontWeight: 'bold' }}>Records to be deleted:</p>
+                <ul style={{ margin: 0, paddingLeft: '20px' }}>
+                  {Object.entries(hardDeleteCounts).map(([table, count]) => (
+                    <li key={table}>
+                      {table}: {count}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
+            <label style={{ display: 'block', marginBottom: '6px' }}>
+              Type the Manway No. <strong>{hardDeleteConfirm.manway_no}</strong> to confirm:
+            </label>
+            <input
+              type="text"
+              value={hardDeleteInput}
+              onChange={(e) => setHardDeleteInput(e.target.value)}
+              style={{
+                width: '100%',
+                padding: '8px',
+                boxSizing: 'border-box',
+                border: '1px solid #ccc',
+                borderRadius: '4px'
+              }}
+            />
+
+            <div style={{ display: 'flex', gap: '10px', marginTop: '20px' }}>
+              <button
+                onClick={() => handleHardDelete(hardDeleteConfirm)}
+                disabled={
+                  hardDeleteLoading ||
+                  hardDeleteCounts === null ||
+                  hardDeleteInput.trim() !== hardDeleteConfirm.manway_no
+                }
+                style={{
+                  flex: 1,
+                  padding: '10px 20px',
+                  backgroundColor:
+                    hardDeleteLoading ||
+                    hardDeleteCounts === null ||
+                    hardDeleteInput.trim() !== hardDeleteConfirm.manway_no
+                      ? '#e9a2a9'
+                      : '#dc3545',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '4px',
+                  cursor:
+                    hardDeleteLoading ||
+                    hardDeleteCounts === null ||
+                    hardDeleteInput.trim() !== hardDeleteConfirm.manway_no
+                      ? 'not-allowed'
+                      : 'pointer'
+                }}
+              >
+                {hardDeleteLoading ? 'Deleting...' : 'Delete Permanently'}
+              </button>
+              <button
+                onClick={closeHardDelete}
+                disabled={hardDeleteLoading}
+                style={{
+                  flex: 1,
+                  padding: '10px 20px',
+                  backgroundColor: '#6c757d',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '4px',
+                  cursor: hardDeleteLoading ? 'not-allowed' : 'pointer'
                 }}
               >
                 Cancel
