@@ -28,14 +28,36 @@ import './App.css';
 function App() {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
+  const [redirectError, setRedirectError] = useState('');
 
   useEffect(() => {
     // A redirect sign-in finishes on the next page load, so the credential has
     // to be collected here. Without this the sign-in is dropped silently and
     // the user lands back on the login screen with no error.
-    getRedirectResult(auth).catch(err => {
-      console.error('Redirect sign-in failed:', err.code, err.message);
-    });
+    getRedirectResult(auth)
+      .then(result => {
+        if (!result) {
+          // Nothing pending is normal on a first visit. Arriving back from
+          // Google with no result instead means the browser dropped the
+          // pending-redirect state, which is what blocked storage looks like.
+          const returningFromSignIn = sessionStorage.getItem('signInStarted');
+          if (returningFromSignIn) {
+            sessionStorage.removeItem('signInStarted');
+            setRedirectError(
+              'Sign-in did not complete. This usually means the browser blocked the storage Google sign-in needs. ' +
+              'Try a normal browser tab (not inside WhatsApp or Gmail), turn off private/incognito mode, ' +
+              'and allow cookies for this site.'
+            );
+          }
+        } else {
+          sessionStorage.removeItem('signInStarted');
+        }
+      })
+      .catch(err => {
+        sessionStorage.removeItem('signInStarted');
+        console.error('Redirect sign-in failed:', err.code, err.message);
+        setRedirectError(`${err.message} (${err.code})`);
+      });
 
     const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
       setUser(currentUser);
@@ -52,7 +74,7 @@ function App() {
     <Router>
       <div className="App">
         <Routes>
-          <Route path="/login" element={!user ? <Auth /> : <Navigate to="/" />} />
+          <Route path="/login" element={!user ? <Auth redirectError={redirectError} /> : <Navigate to="/" />} />
           <Route path="/*" element={user ? <MainApp user={user} /> : <Navigate to="/login" />} />
         </Routes>
       </div>
@@ -63,7 +85,7 @@ function App() {
 const isMobileBrowser = () =>
   /Android|iPhone|iPad|iPod|Mobile|webOS|BlackBerry|Opera Mini|IEMobile/i.test(navigator.userAgent);
 
-const Auth = () => {
+const Auth = ({ redirectError }: { redirectError: string }) => {
   const [error, setError] = useState('');
 
   const handleGoogleLogin = async () => {
@@ -80,6 +102,7 @@ const Auth = () => {
     // they can close without ever resolving. Redirect is the supported flow.
     if (isMobileBrowser()) {
       try {
+        sessionStorage.setItem('signInStarted', '1');
         await signInWithRedirect(auth, googleProvider);
       } catch (err: any) {
         setError(`${err.message} (${err.code})`);
@@ -104,6 +127,7 @@ const Auth = () => {
       }
 
       try {
+        sessionStorage.setItem('signInStarted', '1');
         await signInWithRedirect(auth, googleProvider);
       } catch (redirectErr: any) {
         setError(`${redirectErr.message} (${redirectErr.code})`);
@@ -124,7 +148,7 @@ const Auth = () => {
       <h2>Login</h2>
       <button onClick={handleGuestLogin}>Guest Login</button>
       <button onClick={handleGoogleLogin}>Sign in with Google</button>
-      {error && <p className="error">{error}</p>}
+      {(error || redirectError) && <p className="error">{error || redirectError}</p>}
     </div>
   );
 };
