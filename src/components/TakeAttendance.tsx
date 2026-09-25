@@ -15,6 +15,7 @@ const TakeAttendance = () => {
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState('');
   const [publicHolidays, setPublicHolidays] = useState<string[]>([]);
+  const [holidaysLoaded, setHolidaysLoaded] = useState(false);
   const [phdSerialStart, setPhdSerialStart] = useState<number>(0);
   const [playdaySerialStart, setPlaydaySerialStart] = useState<number>(0);
 
@@ -64,10 +65,12 @@ const TakeAttendance = () => {
       setLoading(false);
     };
 
-    if (publicHolidays.length > 0) { // Only run when holidays are loaded
+    // Wait for the holiday list to have loaded, not for it to be non-empty:
+    // a project with no holidays recorded yet would otherwise never fetch.
+    if (holidaysLoaded) {
       fetchEmployees();
     }
-  }, [date, publicHolidays, phdSerialStart, playdaySerialStart]);
+  }, [date, publicHolidays, holidaysLoaded, phdSerialStart, playdaySerialStart]);
 
   useEffect(() => {
     // Fetch public holidays and serial trackers
@@ -105,6 +108,8 @@ const TakeAttendance = () => {
       } else {
         setPlaydaySerialStart(playdaySerialData.last_serial_number);
       }
+
+      setHolidaysLoaded(true);
     };
 
     fetchData();
