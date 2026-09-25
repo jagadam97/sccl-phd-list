@@ -5,6 +5,10 @@ import { isAdmin } from './admins';
 import {
   signInAnonymously,
   signInWithPopup,
+  signInWithRedirect,
+  getRedirectResult,
+  setPersistence,
+  browserLocalPersistence,
   onAuthStateChanged,
   signOut,
   User
@@ -26,6 +30,13 @@ function App() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    // A redirect sign-in finishes on the next page load, so the credential has
+    // to be collected here. Without this the sign-in is dropped silently and
+    // the user lands back on the login screen with no error.
+    getRedirectResult(auth).catch(err => {
+      console.error('Redirect sign-in failed:', err.code, err.message);
+    });
+
     const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
       setUser(currentUser);
       setLoading(false);
@@ -49,14 +60,54 @@ function App() {
   );
 }
 
+const isMobileBrowser = () =>
+  /Android|iPhone|iPad|iPod|Mobile|webOS|BlackBerry|Opera Mini|IEMobile/i.test(navigator.userAgent);
+
 const Auth = () => {
   const [error, setError] = useState('');
 
   const handleGoogleLogin = async () => {
+    setError('');
+    try {
+      // Keep the session across reloads; browsers that block storage throw
+      // here, and sign-in would otherwise be lost on the next page load.
+      await setPersistence(auth, browserLocalPersistence);
+    } catch (err: any) {
+      console.error('Could not enable persistent login:', err.code, err.message);
+    }
+
+    // Popups are unreliable on mobile browsers and in in-app webviews, where
+    // they can close without ever resolving. Redirect is the supported flow.
+    if (isMobileBrowser()) {
+      try {
+        await signInWithRedirect(auth, googleProvider);
+      } catch (err: any) {
+        setError(`${err.message} (${err.code})`);
+      }
+      return;
+    }
+
     try {
       await signInWithPopup(auth, googleProvider);
     } catch (err: any) {
-      setError(err.message);
+      const popupUnavailable = [
+        'auth/popup-blocked',
+        'auth/popup-closed-by-user',
+        'auth/cancelled-popup-request',
+        'auth/operation-not-supported-in-this-environment',
+        'auth/web-storage-unsupported'
+      ].includes(err.code);
+
+      if (!popupUnavailable) {
+        setError(`${err.message} (${err.code})`);
+        return;
+      }
+
+      try {
+        await signInWithRedirect(auth, googleProvider);
+      } catch (redirectErr: any) {
+        setError(`${redirectErr.message} (${redirectErr.code})`);
+      }
     }
   };
 
